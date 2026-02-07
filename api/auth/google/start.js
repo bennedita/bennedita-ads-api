@@ -1,7 +1,7 @@
 export default function handler(req, res) {
   const clientId = process.env.GOOGLE_CLIENT_ID;
 
-  const redirectUri = 'https://bennedita-ads-api.vercel.app/auth/google/callback';
+const redirectUri = 'https://bennedita-ads-api.vercel.app/api/auth/google/callback';
 
   const scope = 'https://www.googleapis.com/auth/adwords';
 
