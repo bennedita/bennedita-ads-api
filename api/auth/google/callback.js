@@ -35,15 +35,14 @@ console.log("REFRESH_TOKEN:", data.refresh_token);
 
     // IMPORTANTE: não vamos devolver tokens reais na tela (segurança).
     return res.status(200).json({
-      ok: true,
-      has_refresh_token: Boolean(data.refresh_token),
-      received: {
-        access_token: Boolean(data.access_token),
-        refresh_token: Boolean(data.refresh_token),
-        expires_in: data.expires_in,
-        scope: data.scope,
-        token_type: data.token_type,
-      },
+  ok: true,
+  refresh_token: data.refresh_token || null,
+  access_token: data.access_token || null,
+  expires_in: data.expires_in,
+  scope: data.scope,
+  token_type: data.token_type,
+});
+
       // se não vier refresh_token, mostramos o erro para diagnosticar
       debug: data.refresh_token ? undefined : data,
     });
