@@ -1,5 +1,3 @@
-import fetch from "node-fetch";
-
 export async function getAccessToken() {
   const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
   const clientId = process.env.GOOGLE_CLIENT_ID;
