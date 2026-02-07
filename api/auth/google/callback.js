@@ -31,6 +31,7 @@ export default async function handler(req, res) {
     });
 
     const data = await r.json();
+console.log("REFRESH_TOKEN:", data.refresh_token);
 
     // IMPORTANTE: não vamos devolver tokens reais na tela (segurança).
     return res.status(200).json({
