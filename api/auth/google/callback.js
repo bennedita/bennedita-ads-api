@@ -31,20 +31,16 @@ export default async function handler(req, res) {
     });
 
     const data = await r.json();
-console.log("REFRESH_TOKEN:", data.refresh_token);
 
-    // IMPORTANTE: não vamos devolver tokens reais na tela (segurança).
+    // TEMPORÁRIO: devolver refresh_token na tela para você copiar o VALUE.
     return res.status(200).json({
-  ok: true,
-  refresh_token: data.refresh_token || null,
-  access_token: data.access_token || null,
-  expires_in: data.expires_in,
-  scope: data.scope,
-  token_type: data.token_type,
-});
-
-      // se não vier refresh_token, mostramos o erro para diagnosticar
-      debug: data.refresh_token ? undefined : data,
+      ok: true,
+      refresh_token: data.refresh_token || null,
+      access_token: data.access_token || null,
+      expires_in: data.expires_in,
+      scope: data.scope,
+      token_type: data.token_type,
+      raw_error: r.ok ? null : data,
     });
   } catch (err) {
     return res.status(500).json({ ok: false, error: String(err) });
