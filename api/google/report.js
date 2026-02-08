@@ -1,43 +1,70 @@
 export default async function handler(req, res) {
-  if (req.method === "OPTIONS") return res.status(204).end();
-  if (req.method !== "GET") {
-    return res.status(405).json({ error: "Method not allowed" });
+  try {
+    const { code, error } = req.query;
+
+    if (error) {
+      return res.status(400).json({ ok: false, error });
+    }
+
+    if (!code) {
+      return res.status(400).json({
+        ok: false,
+        message: "Code não recebido",
+      });
+    }
+
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+
+    if (!clientId || !clientSecret) {
+      return res.status(500).json({
+        ok: false,
+        message: "Variáveis GOOGLE_CLIENT_ID ou GOOGLE_CLIENT_SECRET ausentes",
+      });
+    }
+
+    const redirectUri =
+      "https://bennedita-ads-api.vercel.app/api/auth/google/callback";
+
+    const body = new URLSearchParams({
+      code: String(code),
+      client_id: clientId,
+      client_secret: clientSecret,
+      redirect_uri: redirectUri,
+      grant_type: "authorization_code",
+    });
+
+    const response = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body,
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return res.status(500).json({
+        ok: false,
+        message: "Erro ao trocar code por token",
+        error: data,
+      });
+    }
+
+    // 🔒 PRODUÇÃO: nunca devolver tokens sensíveis
+    return res.status(200).json({
+      ok: true,
+      message: "Autorização concluída com sucesso",
+      has_refresh_token: Boolean(data.refresh_token),
+      expires_in: data.expires_in,
+      scope: data.scope,
+      token_type: data.token_type,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      ok: false,
+      error: String(err),
+    });
   }
-
-  const customerId = req.query.customerId || "000-000-0000";
-  const period = req.query.period || "last_30_days";
-
-  const response = {
-    source: "mock",
-    customerId,
-    clientName: "Empresa Exemplo Ltda",
-    platform: "Google Ads",
-    period,
-    periodLabel: period === "last_30_days" ? "Últimos 30 dias" : String(period),
-    generatedAt: new Date().toISOString(),
-    kpis: {
-      investment: 7200,
-      leads: 104,
-      cpa: 69.23,
-      clicks: 2450,
-      ctr: 3.85,
-      cpc: 2.94
-    },
-    timeseries: [
-      { date: "2026-01-01", investment: 180, leads: 3 },
-      { date: "2026-01-02", investment: 220, leads: 4 },
-      { date: "2026-01-03", investment: 190, leads: 2 },
-      { date: "2026-01-04", investment: 260, leads: 5 },
-      { date: "2026-01-05", investment: 240, leads: 4 },
-      { date: "2026-01-06", investment: 310, leads: 6 }
-    ],
-    campaigns: [
-      { name: "Busca Genérica", investment: 2850, leads: 32, cpa: 89.06 },
-      { name: "Marca", investment: 1200, leads: 28, cpa: 42.86 },
-      { name: "Remarketing", investment: 1850, leads: 24, cpa: 77.08 },
-      { name: "PMax", investment: 1300, leads: 20, cpa: 65.0 }
-    ]
-  };
-
-  return res.status(200).json(response);
 }
