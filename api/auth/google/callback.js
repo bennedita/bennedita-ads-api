@@ -32,11 +32,11 @@ export default async function handler(req, res) {
 
     const data = await r.json();
 
-    // TEMPORÁRIO: devolver refresh_token na tela para você copiar o VALUE.
+    // Seguro: não devolve tokens reais na tela.
     return res.status(200).json({
       ok: true,
-      refresh_token: data.refresh_token || null,
-      access_token: data.access_token || null,
+      has_refresh_token: Boolean(data.refresh_token),
+      has_access_token: Boolean(data.access_token),
       expires_in: data.expires_in,
       scope: data.scope,
       token_type: data.token_type,
