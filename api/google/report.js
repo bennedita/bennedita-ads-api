@@ -1,70 +1,18 @@
 export default async function handler(req, res) {
   try {
-    const { code, error } = req.query;
-
-    if (error) {
-      return res.status(400).json({ ok: false, error });
-    }
-
-    if (!code) {
-      return res.status(400).json({
-        ok: false,
-        message: "Code não recebido",
-      });
-    }
-
-    const clientId = process.env.GOOGLE_CLIENT_ID;
-    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-
-    if (!clientId || !clientSecret) {
-      return res.status(500).json({
-        ok: false,
-        message: "Variáveis GOOGLE_CLIENT_ID ou GOOGLE_CLIENT_SECRET ausentes",
-      });
-    }
-
-    const redirectUri =
-      "https://bennedita-ads-api.vercel.app/api/auth/google/callback";
-
-    const body = new URLSearchParams({
-      code: String(code),
-      client_id: clientId,
-      client_secret: clientSecret,
-      redirect_uri: redirectUri,
-      grant_type: "authorization_code",
-    });
-
-    const response = await fetch("https://oauth2.googleapis.com/token", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body,
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      return res.status(500).json({
-        ok: false,
-        message: "Erro ao trocar code por token",
-        error: data,
-      });
-    }
-
-    // 🔒 PRODUÇÃO: nunca devolver tokens sensíveis
+    // endpoint de relatório (ainda sem Google Ads real)
     return res.status(200).json({
       ok: true,
-      message: "Autorização concluída com sucesso",
-      has_refresh_token: Boolean(data.refresh_token),
-      expires_in: data.expires_in,
-      scope: data.scope,
-      token_type: data.token_type,
+      message: "report endpoint pronto (ainda sem dados reais)",
+      data: {
+        spend: 0,
+        clicks: 0,
+        conversions: 0,
+        currency: "BRL",
+        period: "LAST_30_DAYS",
+      },
     });
   } catch (err) {
-    return res.status(500).json({
-      ok: false,
-      error: String(err),
-    });
+    return res.status(500).json({ ok: false, error: String(err) });
   }
 }
