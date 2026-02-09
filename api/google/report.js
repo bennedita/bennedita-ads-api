@@ -1,41 +1,42 @@
 const { GoogleAdsApi } = require("google-ads-api");
+
 const client = new GoogleAdsApi({
   client_id: process.env.GOOGLE_CLIENT_ID,
   client_secret: process.env.GOOGLE_CLIENT_SECRET,
   developer_token: process.env.GOOGLE_DEVELOPER_TOKEN,
 });
+
 module.exports = async function handler(req, res) {
-  try {
-    // endpoint de relatório (ainda sem Google Ads real)
-    export default async function handler(req, res) {
   try {
     const refresh_token = process.env.GOOGLE_REFRESH_TOKEN;
 
-    // Você pode passar o customer_id via URL: /api/google/report?customer_id=1234567890
-    // ou salvar no Vercel como GOOGLE_CUSTOMER_ID
-    const customer_id = String(req.query.customer_id || process.env.GOOGLE_CUSTOMER_ID || "");
+    // Pode vir por URL: /api/google/report?customer_id=1234567890
+    // Ou via Vercel: GOOGLE_CUSTOMER_ID
+    const customer_id = String(
+      req.query.customer_id || process.env.GOOGLE_CUSTOMER_ID || ""
+    );
 
     if (!refresh_token) {
-      return res.status(500).json({ ok: false, message: "GOOGLE_REFRESH_TOKEN ausente" });
+      return res
+        .status(500)
+        .json({ ok: false, message: "GOOGLE_REFRESH_TOKEN ausente" });
     }
 
     if (!customer_id) {
       return res.status(400).json({
         ok: false,
-        message: "customer_id ausente. Envie ?customer_id=SEU_ID ou defina GOOGLE_CUSTOMER_ID no Vercel.",
+        message:
+          "customer_id ausente. Envie ?customer_id=SEU_ID ou defina GOOGLE_CUSTOMER_ID no Vercel.",
       });
     }
 
-    // Cria um "customer" autenticado usando refresh_token
     const customer = client.Customer({
       customer_id,
       refresh_token,
     });
 
-    // Período (padrão: últimos 30 dias). Depois a gente parametriza melhor.
     const dateRange = String(req.query.period || "LAST_30_DAYS");
 
-    // GAQL: busca métricas agregadas
     const gaql = `
       SELECT
         metrics.cost_micros,
@@ -67,10 +68,10 @@ module.exports = async function handler(req, res) {
         spend,
         clicks,
         conversions,
-        currency: "BRL", // depois podemos pegar a moeda real da conta
+        currency: "BRL", // depois pegamos a moeda real da conta
       },
     });
   } catch (err) {
     return res.status(500).json({ ok: false, error: String(err) });
   }
-}
+};
