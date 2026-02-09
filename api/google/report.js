@@ -1,10 +1,10 @@
-import { GoogleAdsApi } from "google-ads-api";
+const { GoogleAdsApi } = require("google-ads-api");
 const client = new GoogleAdsApi({
   client_id: process.env.GOOGLE_CLIENT_ID,
   client_secret: process.env.GOOGLE_CLIENT_SECRET,
   developer_token: process.env.GOOGLE_DEVELOPER_TOKEN,
 });
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   try {
     // endpoint de relatório (ainda sem Google Ads real)
     export default async function handler(req, res) {
