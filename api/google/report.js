@@ -1,4 +1,4 @@
-const { GoogleAdsApi } = require("google-ads-api");
+import { GoogleAdsApi } from "google-ads-api";
 
 const client = new GoogleAdsApi({
   client_id: process.env.GOOGLE_CLIENT_ID,
@@ -6,7 +6,7 @@ const client = new GoogleAdsApi({
   developer_token: process.env.GOOGLE_DEVELOPER_TOKEN,
 });
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   try {
     const refresh_token = process.env.GOOGLE_REFRESH_TOKEN;
 
@@ -72,4 +72,4 @@ module.exports = async function handler(req, res) {
   } catch (err) {
     return res.status(500).json({ ok: false, error: String(err) });
   }
-};
+}
