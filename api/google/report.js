@@ -10,8 +10,6 @@ module.exports = async function handler(req, res) {
   try {
     const refresh_token = process.env.GOOGLE_REFRESH_TOKEN;
 
-    // Pode vir por URL: /api/google/report?customer_id=1234567890
-    // Ou via Vercel: GOOGLE_CUSTOMER_ID
     const customer_id = String(
       req.query.customer_id || process.env.GOOGLE_CUSTOMER_ID || ""
     );
@@ -68,7 +66,7 @@ module.exports = async function handler(req, res) {
         spend,
         clicks,
         conversions,
-        currency: "BRL", // depois pegamos a moeda real da conta
+        currency: "BRL",
       },
     });
   } catch (err) {
