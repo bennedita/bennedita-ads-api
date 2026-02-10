@@ -2,5 +2,8 @@
   "name": "bennedita-ads-api",
   "version": "1.0.0",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "google-ads-api": "^23.0.0"
+  }
 }
