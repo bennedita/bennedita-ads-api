@@ -1,49 +1,51 @@
 import { GoogleAdsApi } from "google-ads-api";
 
+const client = new GoogleAdsApi({
+  client_id: process.env.GOOGLE_CLIENT_ID,
+  client_secret: process.env.GOOGLE_CLIENT_SECRET,
+  developer_token: process.env.GOOGLE_DEVELOPER_TOKEN,
+});
+
 export default async function handler(req, res) {
   try {
-    const {
-      GOOGLE_CLIENT_ID,
-      GOOGLE_CLIENT_SECRET,
-      GOOGLE_DEVELOPER_TOKEN,
-      GOOGLE_REFRESH_TOKEN,
-      GOOGLE_CUSTOMER_ID,
-    } = process.env;
+    const refresh_token = process.env.GOOGLE_REFRESH_TOKEN;
 
-    if (!GOOGLE_CLIENT_ID)
-      return res.status(500).json({ error: "GOOGLE_CLIENT_ID ausente" });
+    const customer_id = String(
+      req.query.customer_id || process.env.GOOGLE_CUSTOMER_ID || ""
+    );
 
-    if (!GOOGLE_CLIENT_SECRET)
-      return res.status(500).json({ error: "GOOGLE_CLIENT_SECRET ausente" });
+    if (!refresh_token) {
+      return res.status(500).json({
+        ok: false,
+        message: "GOOGLE_REFRESH_TOKEN ausente",
+      });
+    }
 
-    if (!GOOGLE_DEVELOPER_TOKEN)
-      return res.status(500).json({ error: "GOOGLE_DEVELOPER_TOKEN ausente" });
-
-    if (!GOOGLE_REFRESH_TOKEN)
-      return res.status(500).json({ error: "GOOGLE_REFRESH_TOKEN ausente" });
-
-    if (!GOOGLE_CUSTOMER_ID)
-      return res.status(500).json({ error: "GOOGLE_CUSTOMER_ID ausente" });
-
-    const client = new GoogleAdsApi({
-      client_id: GOOGLE_CLIENT_ID,
-      client_secret: GOOGLE_CLIENT_SECRET,
-      developer_token: GOOGLE_DEVELOPER_TOKEN,
-    });
+    if (!customer_id) {
+      return res.status(400).json({
+        ok: false,
+        message:
+          "customer_id ausente. Envie ?customer_id=SEU_ID ou defina GOOGLE_CUSTOMER_ID no Vercel.",
+      });
+    }
 
     const customer = client.Customer({
-      customer_id: GOOGLE_CUSTOMER_ID.replace(/-/g, ""),
-      refresh_token: GOOGLE_REFRESH_TOKEN,
+      customer_id,
+      refresh_token,
     });
 
-    const rows = await customer.query(`
+    const dateRange = String(req.query.period || "LAST_30_DAYS");
+
+    const gaql = `
       SELECT
         metrics.cost_micros,
         metrics.clicks,
         metrics.conversions
       FROM customer
-      WHERE segments.date DURING LAST_30_DAYS
-    `);
+      WHERE segments.date DURING ${dateRange}
+    `;
+
+    const rows = await customer.query(gaql);
 
     let costMicros = 0;
     let clicks = 0;
@@ -55,21 +57,27 @@ export default async function handler(req, res) {
       conversions += Number(r.metrics.conversions || 0);
     }
 
+    const spend = costMicros / 1_000_000;
+
     return res.status(200).json({
       ok: true,
+      period: dateRange,
+      customer_id,
       data: {
-        spend: costMicros / 1_000_000,
+        spend,
         clicks,
         conversions,
+        currency: "BRL",
       },
     });
-  } catch (error) {
-    console.error("ERRO COMPLETO:", error);
+
+  } catch (err) {
+    console.error("ERRO COMPLETO:", err);
 
     return res.status(500).json({
       ok: false,
-      message: error.message,
-      full_error: error,
+      message: err.message || "Erro desconhecido",
+      details: err?.response?.data || err,
     });
   }
 }
