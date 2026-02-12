@@ -1,9 +1,9 @@
-import { Resend } from "resend";
+const { Resend } = require("resend");
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-export default async function handler(req, res) {
-  // CORS básico (para você conseguir chamar do Lovable depois)
+module.exports = async function handler(req, res) {
+  // CORS básico
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -25,7 +25,6 @@ export default async function handler(req, res) {
     }
 
     const data = await resend.emails.send({
-      // Por enquanto use o domínio sandbox do Resend:
       from: "Bennedita Ads <onboarding@resend.dev>",
       to,
       subject,
@@ -39,4 +38,4 @@ export default async function handler(req, res) {
       error: err?.message || "Unknown error",
     });
   }
-}
+};
