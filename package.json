@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "google-ads-api": "^23.0.0"
+    "google-ads-api": "^23.0.0",
+    "resend": "^3.0.0"
   }
 }
