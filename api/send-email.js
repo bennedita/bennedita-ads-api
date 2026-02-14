@@ -10,14 +10,23 @@ export default async function handler(req, res) {
 
   if (req.method === "OPTIONS") return res.status(200).end();
 // Verificação de API Key interna
-const apiKey = req.headers["x-api-key"];
+const apiKey = String(req.headers["x-api-key"] || "").trim();
+const expectedKey = String(process.env.INTERNAL_API_KEY || "").trim();
 
-if (apiKey !== process.env.INTERNAL_API_KEY) {
+if (!expectedKey) {
+  return res.status(500).json({
+    ok: false,
+    error: "Server misconfigured: INTERNAL_API_KEY missing"
+  });
+}
+
+if (apiKey !== expectedKey) {
   return res.status(401).json({
     ok: false,
     error: "Unauthorized"
   });
 }
+
 
   if (req.method !== "POST") {
     return res.status(405).json({ ok: false, error: "Method not allowed" });
