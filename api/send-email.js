@@ -9,6 +9,15 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
   if (req.method === "OPTIONS") return res.status(200).end();
+// Verificação de API Key interna
+const apiKey = req.headers["x-api-key"];
+
+if (apiKey !== process.env.INTERNAL_API_KEY) {
+  return res.status(401).json({
+    ok: false,
+    error: "Unauthorized"
+  });
+}
 
   if (req.method !== "POST") {
     return res.status(405).json({ ok: false, error: "Method not allowed" });
