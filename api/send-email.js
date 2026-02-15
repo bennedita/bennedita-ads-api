@@ -13,11 +13,15 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
+  // Só aceita POST
+  if (req.method !== "POST") {
+    return res.status(405).json({ ok: false, error: "Method not allowed" });
+  }
+
   // Verificação de API Key interna
   const apiKey = String(req.headers["x-api-key"] || "").trim();
   const expectedKey = String(process.env.INTERNAL_API_KEY || "").trim();
 
-  // Se a env não estiver carregada, devolve erro explícito
   if (!expectedKey) {
     return res.status(500).json({
       ok: false,
@@ -25,11 +29,11 @@ export default async function handler(req, res) {
     });
   }
 
-  // Debug seguro (não vaza a chave inteira)
+  // Debug seguro (não vaza a chave inteira) + MARKER pra confirmar deploy
   if (apiKey !== expectedKey) {
     return res.status(401).json({
       ok: false,
-      error: "Unauthorized",
+      error: "Unauthorized_MARKER_2026",
       debug: {
         apiKeyLen: apiKey.length,
         expectedKeyLen: expectedKey.length,
@@ -41,9 +45,13 @@ export default async function handler(req, res) {
     });
   }
 
-  // Só aceita POST
-  if (req.method !== "POST") {
-    return res.status(405).json({ ok: false, error: "Method not allowed" });
+  // Valida Resend key (evita erro “mudo”)
+  const resendKey = String(process.env.RESEND_API_KEY || "").trim();
+  if (!resendKey) {
+    return res.status(500).json({
+      ok: false,
+      error: "Server misconfigured: RESEND_API_KEY missing",
+    });
   }
 
   try {
@@ -57,4 +65,17 @@ export default async function handler(req, res) {
     }
 
     const data = await resend.emails.send({
-      from: "Bennedita
+      from: "Bennedita Ads <onboarding@resend.dev>",
+      to,
+      subject,
+      html,
+    });
+
+    return res.status(200).json({ ok: true, data });
+  } catch (err) {
+    return res.status(500).json({
+      ok: false,
+      error: err?.message || "Unknown error",
+    });
+  }
+}
