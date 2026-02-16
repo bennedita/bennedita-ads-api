@@ -81,14 +81,25 @@ export default async function handler(req, res) {
       });
     }
 
-    const data = await resend.emails.send({
+    const result = await resend.emails.send({
       from: emailFrom,
       to: toList,
       subject: subject.trim(),
       html,
     });
 
-    return res.status(200).json({ ok: true, data });
+    // ✅ Resend pode retornar { data: null, error: {...} } SEM lançar exception
+    if (result?.error) {
+      return res.status(result.error.statusCode || 502).json({
+        ok: false,
+        error: result.error.message || "Resend error",
+        code: result.error.name || "resend_error",
+        statusCode: result.error.statusCode || 502,
+      });
+    }
+
+    // ✅ Sucesso real
+    return res.status(200).json({ ok: true, data: result.data });
   } catch (err) {
     // Não retorna stack pro client
     const message =
