@@ -8,7 +8,7 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, x-api-key");
 
-  // Preflight
+  // Preflight (OPTIONS)
   if (req.method === "OPTIONS") {
     return res.status(200).end();
   }
@@ -29,7 +29,7 @@ export default async function handler(req, res) {
     });
   }
 
-  // Debug seguro (não vaza a chave inteira) + MARKER pra confirmar deploy
+  // Debug seguro + MARKER (pra confirmar deploy e diagnosticar mismatch)
   if (apiKey !== expectedKey) {
     return res.status(401).json({
       ok: false,
@@ -45,7 +45,7 @@ export default async function handler(req, res) {
     });
   }
 
-  // Valida Resend key (evita erro “mudo”)
+  // Valida Resend key
   const resendKey = String(process.env.RESEND_API_KEY || "").trim();
   if (!resendKey) {
     return res.status(500).json({
