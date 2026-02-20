@@ -14,6 +14,8 @@ export default async function handler(req, res) {
       req.query.customer_id || process.env.GOOGLE_CUSTOMER_ID || ""
     );
 
+    const login_customer_id = process.env.GOOGLE_LOGIN_CUSTOMER_ID; // MCC
+
     if (!refresh_token) {
       return res.status(500).json({
         ok: false,
@@ -28,19 +30,32 @@ export default async function handler(req, res) {
           "customer_id ausente. Envie ?customer_id=SEU_ID ou defina GOOGLE_CUSTOMER_ID no Vercel.",
       });
     }
-// DEBUG TEMPORÁRIO
-const clientId = process.env.GOOGLE_CLIENT_ID || "";
-const clientSecret = process.env.GOOGLE_CLIENT_SECRET || "";
-const refreshToken = process.env.GOOGLE_REFRESH_TOKEN || "";
 
-console.log("[DEBUG OAUTH] clientId_last10:", clientId.slice(-10));
-console.log("[DEBUG OAUTH] clientSecret_len:", clientSecret.length);
-console.log("[DEBUG OAUTH] refreshToken_len:", refreshToken.length);
-console.log("[DEBUG OAUTH] refreshToken_has_newline:", /\r|\n/.test(refreshToken));
-console.log("[DEBUG OAUTH] refreshToken_starts:", refreshToken.slice(0, 4));
+    if (!login_customer_id) {
+      return res.status(500).json({
+        ok: false,
+        message: "GOOGLE_LOGIN_CUSTOMER_ID ausente (ID do MCC).",
+      });
+    }
+
+    // DEBUG TEMPORÁRIO
+    const clientId = process.env.GOOGLE_CLIENT_ID || "";
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET || "";
+    const refreshToken = process.env.GOOGLE_REFRESH_TOKEN || "";
+    console.log("[DEBUG OAUTH] clientId_last10:", clientId.slice(-10));
+    console.log("[DEBUG OAUTH] clientSecret_len:", clientSecret.length);
+    console.log("[DEBUG OAUTH] refreshToken_len:", refreshToken.length);
+    console.log(
+      "[DEBUG OAUTH] refreshToken_has_newline:",
+      /\r|\n/.test(refreshToken)
+    );
+    console.log("[DEBUG OAUTH] refreshToken_starts:", refreshToken.slice(0, 4));
+    console.log("[DEBUG OAUTH] login_customer_id:", login_customer_id);
+
     const customer = client.Customer({
       customer_id,
       refresh_token,
+      login_customer_id,
     });
 
     const dateRange = String(req.query.period || "LAST_30_DAYS");
@@ -79,7 +94,6 @@ console.log("[DEBUG OAUTH] refreshToken_starts:", refreshToken.slice(0, 4));
         currency: "BRL",
       },
     });
-
   } catch (err) {
     console.error("ERRO COMPLETO:", err);
 
