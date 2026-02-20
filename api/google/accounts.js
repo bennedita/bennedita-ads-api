@@ -43,7 +43,9 @@ export default async function handler(req, res) {
     const rows = await customer.query(query);
 
     const accounts = rows.map((r) => ({
-      id: r.customer_client.client_customer.replaceAll("-", ""),
+    id: r.customer_client.client_customer
+  .replace("customers/", "")
+  .replaceAll("-", ""),
       name: r.customer_client.descriptive_name,
     }));
 
