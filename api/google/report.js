@@ -100,7 +100,7 @@ const gaql = `
 
     return res.status(200).json({
       ok: true,
-      period: dateRange,
+      period,
       customer_id,
       data: {
         spend,
