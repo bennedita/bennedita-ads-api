@@ -58,16 +58,31 @@ export default async function handler(req, res) {
       login_customer_id,
     });
 
-    const dateRange = String(req.query.period || "LAST_30_DAYS");
+const period = String(req.query.period || "LAST_30_DAYS");
+const startDate = req.query.start_date ? String(req.query.start_date) : null;
+const endDate = req.query.end_date ? String(req.query.end_date) : null;
 
-    const gaql = `
-      SELECT
-        metrics.cost_micros,
-        metrics.clicks,
-        metrics.conversions
-      FROM customer
-      WHERE segments.date DURING ${dateRange}
-    `;
+// Filtro de data GAQL
+let dateFilter = `segments.date DURING ${period}`;
+
+if (period === "custom") {
+  if (!startDate || !endDate) {
+    return res.status(400).json({
+      ok: false,
+      message: "Período custom exige start_date e end_date (YYYY-MM-DD).",
+    });
+  }
+  dateFilter = `segments.date BETWEEN '${startDate}' AND '${endDate}'`;
+}
+
+const gaql = `
+  SELECT
+    metrics.cost_micros,
+    metrics.clicks,
+    metrics.conversions
+  FROM customer
+  WHERE ${dateFilter}
+`;
 
     const rows = await customer.query(gaql);
 
