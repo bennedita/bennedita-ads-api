@@ -75,40 +75,54 @@ if (period === "custom") {
   dateFilter = `segments.date BETWEEN '${startDate}' AND '${endDate}'`;
 }
 
-const gaql = `
-  SELECT
-    metrics.cost_micros,
-    metrics.clicks,
-    metrics.conversions
-  FROM customer
-  WHERE ${dateFilter}
+const summaryQuery = `
+SELECT
+  metrics.cost_micros,
+  metrics.clicks,
+  metrics.conversions
+FROM customer
+WHERE ${dateFilter}
 `;
-
-    const rows = await customer.query(gaql);
+const chartQuery = `
+SELECT
+  segments.date,
+  metrics.cost_micros,
+  metrics.conversions
+FROM customer
+WHERE ${dateFilter}
+ORDER BY segments.date
+`;
+    const summaryRows = await customer.query(summaryQuery);
+const chartRows = await customer.query(chartQuery);
 
     let costMicros = 0;
     let clicks = 0;
     let conversions = 0;
 
-    for (const r of rows) {
+    for (const r of summaryRows) {
       costMicros += Number(r.metrics.cost_micros || 0);
       clicks += Number(r.metrics.clicks || 0);
       conversions += Number(r.metrics.conversions || 0);
     }
 
     const spend = costMicros / 1_000_000;
-
+const chartData = chartRows.map((r) => ({
+  date: r.segments.date,
+  investimento: Number(r.metrics.cost_micros || 0) / 1_000_000,
+  leads: Number(r.metrics.conversions || 0),
+}));
     return res.status(200).json({
-      ok: true,
-      period,
-      customer_id,
-      data: {
-        spend,
-        clicks,
-        conversions,
-        currency: "BRL",
-      },
-    });
+  ok: true,
+  period,
+  customer_id,
+  data: {
+    spend,
+    clicks,
+    conversions,
+    currency: "BRL",
+  },
+  chartData,
+});
   } catch (err) {
     console.error("ERRO COMPLETO:", err);
 
