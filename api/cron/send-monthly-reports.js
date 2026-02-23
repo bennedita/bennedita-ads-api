@@ -27,7 +27,7 @@ export default async function handler(req, res) {
     const end_date = formatISODate(lastDayLastMonth);
 
     // ✅ por enquanto: 1 cliente (depois vira lista de clientes)
-    const customer_id = process.env.GOOGLE_CUSTOMER_ID;
+    const customer_id = process.env.CRON_GOOGLE_CUSTOMER_ID || process.env.GOOGLE_CUSTOMER_ID;
 
     // Chama o próprio endpoint de report (mesma API já pronta)
 const proto = req.headers["x-forwarded-proto"] || "https";
