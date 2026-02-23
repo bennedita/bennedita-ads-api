@@ -4,7 +4,14 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 function requireAuth(req) {
   const token = req.headers.authorization || "";
-  return token === `Bearer ${process.env.INTERNAL_API_KEY}`;
+
+  // Permite execução automática via Vercel Cron
+  const isVercelCron = req.headers["x-vercel-cron"] === "1";
+
+  // Permite execução manual via Bearer
+  const isManualAuth = token === `Bearer ${process.env.INTERNAL_API_KEY}`;
+
+  return isVercelCron || isManualAuth;
 }
 
 function formatISODate(d) {
