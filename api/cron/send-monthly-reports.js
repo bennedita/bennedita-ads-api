@@ -30,10 +30,9 @@ export default async function handler(req, res) {
     const customer_id = process.env.GOOGLE_CUSTOMER_ID;
 
     // Chama o próprio endpoint de report (mesma API já pronta)
-    const baseUrl =
-      process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}`
-        : "http://localhost:3000";
+const proto = req.headers["x-forwarded-proto"] || "https";
+const host = req.headers["x-forwarded-host"] || req.headers.host;
+const baseUrl = `${proto}://${host}`;
 
     const url = `${baseUrl}/api/google/report?customer_id=${customer_id}&period=custom&start_date=${start_date}&end_date=${end_date}`;
 
