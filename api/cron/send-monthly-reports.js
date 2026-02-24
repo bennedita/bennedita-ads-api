@@ -36,7 +36,8 @@ export default async function handler(req, res) {
     const failed = [];
 
     for (const client of clients) {
-      if (client.frequency !== "monthly") continue;
+      const freqs = client.frequencies || (client.frequency ? [client.frequency] : []);
+if (!freqs.includes("monthly")) continue;
 
       try {
         const proto = req.headers["x-forwarded-proto"] || "https";
