@@ -45,7 +45,7 @@ if (!freqs.includes("monthly")) continue;
         const baseUrl = `${proto}://${host}`;
 
         const url = `${baseUrl}/api/google/report?customer_id=${client.customer_id}&period=custom&start_date=${start_date}&end_date=${end_date}`;
-
+const viewUrl = `https://lead-report-peek.lovable.app/view?customer_id=${encodeURIComponent(client.customer_id)}&start_date=${start_date}&end_date=${end_date}`;
         const reportResponse = await fetch(url);
         const report = await reportResponse.json();
 
@@ -119,7 +119,7 @@ await resend.emails.send({
       </p>
 
       <div style="text-align:center;margin:30px 0;">
-        <a href="https://lead-report-peek.lovable.app"
+        <a href="${viewUrl}"
            style="background:#2563eb;color:#ffffff;padding:14px 24px;
                   text-decoration:none;border-radius:8px;font-weight:bold;
                   display:inline-block;">
