@@ -73,7 +73,7 @@ if (!freqs.includes("weekly")) continue;
         const conversions = Number(report.data?.conversions ?? 0);
         const clicks = Number(report.data?.clicks ?? 0);
         const cpa = conversions > 0 ? spend / conversions : 0;
-
+const viewUrl = `https://lead-report-peek.lovable.app/view?customer_id=${encodeURIComponent(client.customer_id)}&start_date=${start_date}&end_date=${end_date}`;
         await resend.emails.send({
           from: process.env.EMAIL_FROM,
           to: client.email,
@@ -130,7 +130,7 @@ if (!freqs.includes("weekly")) continue;
                 </p>
 
                 <div style="text-align:center;margin:30px 0;">
-                  <a href="https://lead-report-peek.lovable.app"
+                  <a href="${viewUrl}"
                     style="background:#2563eb;color:#ffffff;padding:14px 24px;text-decoration:none;border-radius:8px;font-weight:bold;display:inline-block;">
                     Ver dashboard completo
                   </a>
