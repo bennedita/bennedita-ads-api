@@ -50,12 +50,13 @@ export default async function handler(req, res) {
 if (!freqs.includes("monthly")) continue;
 
       try {
-        const proto = req.headers["x-forwarded-proto"] || "https";
-        const host = req.headers["x-forwarded-host"] || req.headers.host;
-        const baseUrl = `${proto}://${host}`;
+        const REPORT_API_ORIGIN = process.env.REPORT_API_ORIGIN;
+if (!REPORT_API_ORIGIN) {
+  throw new Error("REPORT_API_ORIGIN ausente (defina na Vercel Production)");
+}
 
-        const url =
-  `${baseUrl}/api/google/report` +
+const url =
+  `${REPORT_API_ORIGIN}/api/google/report` +
   `?customer_id=${encodeURIComponent(client.customer_id)}` +
   `&period=custom&start_date=${start_date}&end_date=${end_date}`;
 
