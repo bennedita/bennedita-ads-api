@@ -3,7 +3,10 @@ import { Resend } from "resend";
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 function requireAuth(req) {
-  const token = req.headers.authorization || "";
+  const token =
+  req.headers.authorization ||
+  req.headers.Authorization ||
+  "";
   const isVercelCron = req.headers["x-vercel-cron"] === "1";
   const isManualAuth = token === `Bearer ${process.env.INTERNAL_API_KEY}`;
   return isVercelCron || isManualAuth;
