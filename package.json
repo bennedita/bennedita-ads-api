@@ -5,6 +5,7 @@
   "type": "module",
   "dependencies": {
     "google-ads-api": "^23.0.0",
-    "resend": "^3.0.0"
+    "resend": "^3.0.0",
+    "@upstash/redis": "^1.28.4"
   }
 }
