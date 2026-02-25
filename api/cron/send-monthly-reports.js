@@ -8,12 +8,15 @@ function requireAuth(req) {
     req.headers.Authorization ||
     "";
 
-  if (!authHeader) return false;
-
   const token = authHeader.replace(/^Bearer\s+/i, "").trim();
   const expected = (process.env.INTERNAL_API_KEY || "").trim();
 
-  return token === expected;
+  const isManualAuth = token === expected;
+
+  const userAgent = req.headers["user-agent"] || "";
+  const isVercelCron = userAgent.includes("vercel-cron");
+
+  return isManualAuth || isVercelCron;
 }
 
 function formatISODate(d) {
