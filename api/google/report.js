@@ -7,9 +7,6 @@ const client = new GoogleAdsApi({
 });
 
 export default async function handler(req, res) {
-    // DEBUG TEMPORÁRIO: verificar se o header interno está chegando
-  console.log("[report] x-internal-api-key:", req.headers["x-internal-api-key"]);
-  console.log("[report] authorization:", req.headers["authorization"]);
   try {
     const refresh_token = process.env.GOOGLE_REFRESH_TOKEN;
 
