@@ -54,10 +54,32 @@ if (!freqs.includes("monthly")) continue;
         const host = req.headers["x-forwarded-host"] || req.headers.host;
         const baseUrl = `${proto}://${host}`;
 
-        const url = `${baseUrl}/api/google/report?customer_id=${client.customer_id}&period=custom&start_date=${start_date}&end_date=${end_date}`;
-const viewUrl = `https://lead-report-peek.lovable.app/view?customer_id=${encodeURIComponent(client.customer_id)}&start_date=${start_date}&end_date=${end_date}`;
-        const reportResponse = await fetch(url);
-        const report = await reportResponse.json();
+        const url =
+  `${baseUrl}/api/google/report` +
+  `?customer_id=${encodeURIComponent(client.customer_id)}` +
+  `&period=custom&start_date=${start_date}&end_date=${end_date}`;
+
+const viewUrl =
+  `https://lead-report-peek.lovable.app/view` +
+  `?customer_id=${encodeURIComponent(client.customer_id)}` +
+  `&start_date=${start_date}&end_date=${end_date}`;
+
+const reportResponse = await fetch(url, {
+  headers: {
+    Authorization: `Bearer ${process.env.INTERNAL_API_KEY}`,
+  },
+});
+
+const contentType = reportResponse.headers.get("content-type") || "";
+if (!contentType.includes("application/json")) {
+  const text = await reportResponse.text();
+  throw new Error(
+    `Report API retornou NÃO-JSON (${reportResponse.status}). ` +
+    `Início: ${text.slice(0, 80)}`
+  );
+}
+
+const report = await reportResponse.json();
 
         if (!reportResponse.ok || !report?.ok) {
           throw new Error("Failed to generate report");
