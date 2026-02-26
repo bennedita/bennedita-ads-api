@@ -176,12 +176,68 @@ const delta = {
   clicks: calcDelta(clicks, prevClicks),
   conversions: calcDelta(conversions, prevConversions),
 };
-    
+// ============================
+// INSIGHTS AUTOMÁTICOS
+// ============================
+
+function generateInsights(current, previous, delta) {
+  const insights = [];
+
+  // Leads
+  if (current.conversions > 0) {
+    insights.push(
+      `Foram gerados ${current.conversions} leads no período.`
+    );
+  }
+
+  // Investimento
+  if (current.spend > 0) {
+    insights.push(
+      `O investimento total foi de R$ ${current.spend.toFixed(2)}.`
+    );
+  }
+
+  // CPL
+  if (current.conversions > 0) {
+    const cpl = current.spend / current.conversions;
+    insights.push(
+      `O custo médio por lead foi de R$ ${cpl.toFixed(2)}.`
+    );
+  }
+
+  // Crescimento de conversões
+  if (delta.conversions !== null) {
+    if (delta.conversions > 0) {
+      insights.push(
+        `As conversões aumentaram ${delta.conversions.toFixed(1)}% em relação ao período anterior.`
+      );
+    } else if (delta.conversions < 0) {
+      insights.push(
+        `As conversões reduziram ${Math.abs(delta.conversions).toFixed(1)}% comparado ao período anterior.`
+      );
+    }
+  }
+
+  return insights;
+}    
 const chartData = chartRows.map((r) => ({
   date: r.segments.date,
   investimento: Number(r.metrics.cost_micros || 0) / 1_000_000,
   leads: Number(r.metrics.conversions || 0),
 }));
+    const currentData = {
+  spend,
+  clicks,
+  conversions,
+};
+
+const previousData = {
+  spend: prevSpend,
+  clicks: prevClicks,
+  conversions: prevConversions,
+};
+
+const insights = generateInsights(currentData, previousData, delta);
    return res.status(200).json({
   ok: true,
   period,
@@ -200,7 +256,7 @@ const chartData = chartRows.map((r) => ({
   },
 
   delta,
-
+  insights,
   chartData,
 }); 
   } catch (err) {
