@@ -1,33 +1,18 @@
 import { Resend } from "resend";
-
+import { requireInternalAuth } from "../_lib/requireInternalAuth.js";
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-function requireAuth(req) {
-  const authHeader =
-    req.headers.authorization ||
-    req.headers.Authorization ||
-    "";
-
-  const token = authHeader.replace(/^Bearer\s+/i, "").trim();
-  const expected = (process.env.INTERNAL_API_KEY || "").trim();
-
-  const isManualAuth = token === expected;
-
-  const userAgent = req.headers["user-agent"] || "";
-  const isVercelCron = userAgent.includes("vercel-cron");
-
-  return isManualAuth || isVercelCron;
-}
 
 function formatISODate(d) {
   return d.toISOString().split("T")[0];
 }
 
 export default async function handler(req, res) {
+  const authError = requireInternalAuth(req, res);
+if (authError) return;
+  
   try {
-    if (!requireAuth(req)) {
-      return res.status(401).json({ ok: false, error: "Unauthorized" });
-    }
+    
 
     const now = new Date();
     const firstDayLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -67,8 +52,8 @@ const viewUrl =
 
 const reportResponse = await fetch(url, {
   headers: {
-    Authorization: `Bearer ${process.env.INTERNAL_API_KEY}`,
-  },
+  "x-internal-api-key": process.env.INTERNAL_API_KEY,
+},
 });
 
 const contentType = reportResponse.headers.get("content-type") || "";
