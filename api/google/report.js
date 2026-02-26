@@ -1,5 +1,5 @@
 import { GoogleAdsApi } from "google-ads-api";
-
+import { requireInternalAuth } from "../_lib/requireInternalAuth.js";
 const client = new GoogleAdsApi({
   client_id: process.env.GOOGLE_CLIENT_ID,
   client_secret: process.env.GOOGLE_CLIENT_SECRET,
@@ -7,6 +7,9 @@ const client = new GoogleAdsApi({
 });
 
 export default async function handler(req, res) {
+    const authError = requireInternalAuth(req, res);
+  if (authError) return;
+  
   try {
     const refresh_token = process.env.GOOGLE_REFRESH_TOKEN;
 
