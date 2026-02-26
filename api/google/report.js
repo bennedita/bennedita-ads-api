@@ -62,6 +62,26 @@ export default async function handler(req, res) {
     });
 
 const period = String(req.query.period || "LAST_30_DAYS");
+    function getPreviousDateRange(start, end) {
+  const startDate = new Date(start);
+  const endDate = new Date(end);
+
+  const diffMs = endDate - startDate;
+  const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+  const prevEnd = new Date(startDate);
+  prevEnd.setDate(prevEnd.getDate() - 1);
+
+  const prevStart = new Date(prevEnd);
+  prevStart.setDate(prevStart.getDate() - diffDays);
+
+  const format = (d) => d.toISOString().split("T")[0];
+
+  return {
+    start: format(prevStart),
+    end: format(prevEnd),
+  };
+}
 const startDate = req.query.start_date ? String(req.query.start_date) : null;
 const endDate = req.query.end_date ? String(req.query.end_date) : null;
 
@@ -97,7 +117,26 @@ ORDER BY segments.date
 `;
     const summaryRows = await customer.query(summaryQuery);
 const chartRows = await customer.query(chartQuery);
+// ============================
+// PERÍODO ANTERIOR (apenas se custom)
+// ============================
 
+let previousSummaryRows = [];
+
+if (period === "custom" && startDate && endDate) {
+  const prevRange = getPreviousDateRange(startDate, endDate);
+
+  const previousQuery = `
+  SELECT
+    metrics.cost_micros,
+    metrics.clicks,
+    metrics.conversions
+  FROM customer
+  WHERE segments.date BETWEEN '${prevRange.start}' AND '${prevRange.end}'
+  `;
+
+  previousSummaryRows = await customer.query(previousQuery);
+}
     let costMicros = 0;
     let clicks = 0;
     let conversions = 0;
@@ -107,25 +146,63 @@ const chartRows = await customer.query(chartQuery);
       clicks += Number(r.metrics.clicks || 0);
       conversions += Number(r.metrics.conversions || 0);
     }
+// ============================
+// SOMA PERÍODO ANTERIOR
+// ============================
 
+let prevCostMicros = 0;
+let prevClicks = 0;
+let prevConversions = 0;
+
+for (const r of previousSummaryRows) {
+  prevCostMicros += Number(r.metrics.cost_micros || 0);
+  prevClicks += Number(r.metrics.clicks || 0);
+  prevConversions += Number(r.metrics.conversions || 0);
+}
+
+const prevSpend = prevCostMicros / 1_000_000;
     const spend = costMicros / 1_000_000;
+    // ============================
+// CÁLCULO DE VARIAÇÃO (%)
+// ============================
+
+function calcDelta(current, previous) {
+  if (!previous || previous === 0) return null;
+  return ((current - previous) / previous) * 100;
+}
+
+const delta = {
+  spend: calcDelta(spend, prevSpend),
+  clicks: calcDelta(clicks, prevClicks),
+  conversions: calcDelta(conversions, prevConversions),
+};
+    
 const chartData = chartRows.map((r) => ({
   date: r.segments.date,
   investimento: Number(r.metrics.cost_micros || 0) / 1_000_000,
   leads: Number(r.metrics.conversions || 0),
 }));
-    return res.status(200).json({
+   return res.status(200).json({
   ok: true,
   period,
   customer_id,
-  data: {
+
+  current: {
     spend,
     clicks,
     conversions,
-    currency: "BRL",
   },
+
+  previous: {
+    spend: prevSpend,
+    clicks: prevClicks,
+    conversions: prevConversions,
+  },
+
+  delta,
+
   chartData,
-});
+}); 
   } catch (err) {
     console.error("ERRO COMPLETO:", err);
 
