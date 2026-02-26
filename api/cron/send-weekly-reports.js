@@ -1,13 +1,7 @@
 import { Resend } from "resend";
-
+import { requireInternalAuth } from "../_lib/requireInternalAuth.js";
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-function requireAuth(req) {
-  const token = req.headers.authorization || "";
-  const isVercelCron = req.headers["x-vercel-cron"] === "1";
-  const isManualAuth = token === `Bearer ${process.env.INTERNAL_API_KEY}`;
-  return isVercelCron || isManualAuth;
-}
 
 function formatISODate(d) {
   return d.toISOString().split("T")[0];
@@ -35,11 +29,11 @@ function getLastWeekMondayToSunday() {
 }
 
 export default async function handler(req, res) {
+  const authError = requireInternalAuth(req, res);
+if (authError) return;
+  
   try {
-    if (!requireAuth(req)) {
-      return res.status(401).json({ ok: false, error: "Unauthorized" });
-    }
-
+    
     const { lastWeekMonday, lastWeekSunday } = getLastWeekMondayToSunday();
     const start_date = formatISODate(lastWeekMonday);
     const end_date = formatISODate(lastWeekSunday);
@@ -57,12 +51,20 @@ export default async function handler(req, res) {
 if (!freqs.includes("weekly")) continue;
 
       try {
-        const proto = req.headers["x-forwarded-proto"] || "https";
-        const host = req.headers["x-forwarded-host"] || req.headers.host;
-        const baseUrl = `${proto}://${host}`;
+        const REPORT_API_ORIGIN = process.env.REPORT_API_ORIGIN;
+if (!REPORT_API_ORIGIN) {
+  throw new Error("REPORT_API_ORIGIN ausente (defina na Vercel Production)");
+}
 
-        const url = `${baseUrl}/api/google/report?customer_id=${client.customer_id}&period=custom&start_date=${start_date}&end_date=${end_date}`;
-        const reportResponse = await fetch(url);
+const url =
+  `${REPORT_API_ORIGIN}/api/google/report` +
+  `?customer_id=${encodeURIComponent(client.customer_id)}` +
+  `&period=custom&start_date=${start_date}&end_date=${end_date}`;
+        const reportResponse = await fetch(url, {
+  headers: {
+    "x-internal-api-key": process.env.INTERNAL_API_KEY,
+  },
+});
         const report = await reportResponse.json();
 
         if (!reportResponse.ok || !report?.ok) {
