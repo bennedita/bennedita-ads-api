@@ -21,7 +21,11 @@ if (isVercelCronHeader || isVercelCronUA) {
 }
 
   // ✅ Permite chamadas internas autenticadas via header
-  const provided = String(req.headers["x-internal-api-key"] || "").trim();
+  const provided = String(
+  req.headers["x-internal-api-key"] ||
+  req.query["x-internal-api-key"] ||
+  ""
+).trim();
 
   if (!provided || provided !== expected) {
     return res.status(401).json({
