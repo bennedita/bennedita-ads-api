@@ -19,7 +19,13 @@ const isVercelCronUA = userAgent.includes("vercel-cron");
 if (isVercelCronHeader || isVercelCronUA) {
   return null;
 }
+  // ✅ Permite chamadas do dashboard (browser) vindas de uma origem confiável
+  const allowedOrigin = (process.env.REPORT_API_ORIGIN || "").trim();
+  const origin = String(req.headers["origin"] || "").trim();
 
+  if (allowedOrigin && origin && origin === allowedOrigin) {
+    return null;
+  }
   // ✅ Permite chamadas internas autenticadas via header
   const provided = String(
   req.headers["x-internal-api-key"] ||
