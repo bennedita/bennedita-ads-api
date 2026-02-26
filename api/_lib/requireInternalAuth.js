@@ -12,10 +12,13 @@ export function requireInternalAuth(req, res) {
   }
 
   // ✅ Permite execução automática da Vercel Cron
-  const isVercelCron = req.headers["x-vercel-cron"] === "1";
-  if (isVercelCron) {
-    return null;
-  }
+const isVercelCronHeader = req.headers["x-vercel-cron"] === "1";
+const userAgent = String(req.headers["user-agent"] || "");
+const isVercelCronUA = userAgent.includes("vercel-cron");
+
+if (isVercelCronHeader || isVercelCronUA) {
+  return null;
+}
 
   // ✅ Permite chamadas internas autenticadas via header
   const provided = String(req.headers["x-internal-api-key"] || "").trim();
