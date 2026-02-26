@@ -1,4 +1,6 @@
 export function requireInternalAuth(req, res) {
+  console.log("HEADERS:", req.headers);
+  
   const expected = (process.env.INTERNAL_API_KEY || "").trim();
 
   if (!expected) {
