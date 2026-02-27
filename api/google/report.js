@@ -1,15 +1,126 @@
 import { GoogleAdsApi } from "google-ads-api";
 import { requireInternalAuth } from "../_lib/requireInternalAuth.js";
+
 const client = new GoogleAdsApi({
   client_id: process.env.GOOGLE_CLIENT_ID,
   client_secret: process.env.GOOGLE_CLIENT_SECRET,
   developer_token: process.env.GOOGLE_DEVELOPER_TOKEN,
 });
 
+function formatDate(d) {
+  return d.toISOString().split("T")[0];
+}
+
+// Converte period (LAST_7_DAYS, THIS_MONTH, etc) em range fixo start/end
+function getRangeFromPeriod(period) {
+  const today = new Date();
+
+  // Usar ontem como "end" para evitar dia parcial (muito comum em Ads)
+  const end = new Date(today);
+  end.setDate(end.getDate() - 1);
+
+  const start = new Date(end);
+
+  const daysMap = {
+    LAST_7_DAYS: 7,
+    LAST_14_DAYS: 14,
+    LAST_30_DAYS: 30,
+    LAST_90_DAYS: 90,
+  };
+
+  if (daysMap[period]) {
+    start.setDate(end.getDate() - (daysMap[period] - 1));
+    return { start: formatDate(start), end: formatDate(end) };
+  }
+
+  if (period === "THIS_MONTH") {
+    const s = new Date(end.getFullYear(), end.getMonth(), 1);
+    return { start: formatDate(s), end: formatDate(end) };
+  }
+
+  if (period === "LAST_MONTH") {
+    const s = new Date(end.getFullYear(), end.getMonth() - 1, 1);
+    const e = new Date(end.getFullYear(), end.getMonth(), 0); // último dia do mês passado
+    return { start: formatDate(s), end: formatDate(e) };
+  }
+
+  // fallback: 30 dias
+  start.setDate(end.getDate() - 29);
+  return { start: formatDate(start), end: formatDate(end) };
+}
+
+// Dado um range, gera o range anterior equivalente (mesma duração)
+function getPreviousDateRange(start, end) {
+  const startDate = new Date(start);
+  const endDate = new Date(end);
+
+  const diffMs = endDate.getTime() - startDate.getTime();
+  const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+  const prevEnd = new Date(startDate);
+  prevEnd.setDate(prevEnd.getDate() - 1);
+
+  const prevStart = new Date(prevEnd);
+  prevStart.setDate(prevStart.getDate() - diffDays);
+
+  return {
+    start: formatDate(prevStart),
+    end: formatDate(prevEnd),
+  };
+}
+
+function calcDelta(current, previous) {
+  if (!previous || previous === 0) return null;
+  return ((current - previous) / previous) * 100;
+}
+
+function generateInsights(current, delta) {
+  const insights = [];
+
+  // Conversões
+  if (current.conversions > 0) {
+    insights.push(`Foram geradas ${current.conversions} conversões no período.`);
+  } else {
+    insights.push(`Não houve conversões registradas no período.`);
+  }
+
+  // Investimento
+  if (current.spend > 0) {
+    insights.push(`O investimento total foi de R$ ${current.spend.toFixed(2)}.`);
+  }
+
+  // CPA médio
+  if (current.conversions > 0 && current.spend > 0) {
+    const cpa = current.spend / current.conversions;
+    insights.push(`O CPA médio foi de R$ ${cpa.toFixed(2)}.`);
+  }
+
+  // Variação de conversões
+  if (delta.conversions !== null) {
+    if (delta.conversions > 0) {
+      insights.push(
+        `As conversões aumentaram ${delta.conversions.toFixed(
+          1
+        )}% em relação ao período anterior.`
+      );
+    } else if (delta.conversions < 0) {
+      insights.push(
+        `As conversões reduziram ${Math.abs(delta.conversions).toFixed(
+          1
+        )}% em relação ao período anterior.`
+      );
+    } else {
+      insights.push(`As conversões ficaram estáveis vs período anterior.`);
+    }
+  }
+
+  return insights;
+}
+
 export default async function handler(req, res) {
-    const authError = requireInternalAuth(req, res);
+  const authError = requireInternalAuth(req, res);
   if (authError) return;
-  
+
   try {
     const refresh_token = process.env.GOOGLE_REFRESH_TOKEN;
 
@@ -20,10 +131,7 @@ export default async function handler(req, res) {
     const login_customer_id = process.env.GOOGLE_LOGIN_CUSTOMER_ID; // MCC
 
     if (!refresh_token) {
-      return res.status(500).json({
-        ok: false,
-        message: "GOOGLE_REFRESH_TOKEN ausente",
-      });
+      return res.status(500).json({ ok: false, message: "GOOGLE_REFRESH_TOKEN ausente" });
     }
 
     if (!customer_id) {
@@ -41,17 +149,14 @@ export default async function handler(req, res) {
       });
     }
 
-    // DEBUG TEMPORÁRIO
+    // DEBUG TEMPORÁRIO (pode remover depois)
     const clientId = process.env.GOOGLE_CLIENT_ID || "";
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET || "";
     const refreshToken = process.env.GOOGLE_REFRESH_TOKEN || "";
     console.log("[DEBUG OAUTH] clientId_last10:", clientId.slice(-10));
     console.log("[DEBUG OAUTH] clientSecret_len:", clientSecret.length);
     console.log("[DEBUG OAUTH] refreshToken_len:", refreshToken.length);
-    console.log(
-      "[DEBUG OAUTH] refreshToken_has_newline:",
-      /\r|\n/.test(refreshToken)
-    );
+    console.log("[DEBUG OAUTH] refreshToken_has_newline:", /\r|\n/.test(refreshToken));
     console.log("[DEBUG OAUTH] refreshToken_starts:", refreshToken.slice(0, 4));
     console.log("[DEBUG OAUTH] login_customer_id:", login_customer_id);
 
@@ -61,82 +166,65 @@ export default async function handler(req, res) {
       login_customer_id,
     });
 
-const period = String(req.query.period || "LAST_30_DAYS");
-    function getPreviousDateRange(start, end) {
-  const startDate = new Date(start);
-  const endDate = new Date(end);
+    const period = String(req.query.period || "LAST_30_DAYS");
+    const startDate = req.query.start_date ? String(req.query.start_date) : null;
+    const endDate = req.query.end_date ? String(req.query.end_date) : null;
 
-  const diffMs = endDate - startDate;
-  const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    // Range atual (custom ou period padrão)
+    let currentRange;
+    if (period === "custom") {
+      if (!startDate || !endDate) {
+        return res.status(400).json({
+          ok: false,
+          message: "Período custom exige start_date e end_date (YYYY-MM-DD).",
+        });
+      }
+      currentRange = { start: startDate, end: endDate };
+    } else {
+      currentRange = getRangeFromPeriod(period);
+    }
 
-  const prevEnd = new Date(startDate);
-  prevEnd.setDate(prevEnd.getDate() - 1);
+    const dateFilter = `segments.date BETWEEN '${currentRange.start}' AND '${currentRange.end}'`;
 
-  const prevStart = new Date(prevEnd);
-  prevStart.setDate(prevStart.getDate() - diffDays);
+    const summaryQuery = `
+      SELECT
+        metrics.cost_micros,
+        metrics.clicks,
+        metrics.conversions
+      FROM customer
+      WHERE ${dateFilter}
+    `;
 
-  const format = (d) => d.toISOString().split("T")[0];
+    const chartQuery = `
+      SELECT
+        segments.date,
+        metrics.cost_micros,
+        metrics.conversions
+      FROM customer
+      WHERE ${dateFilter}
+      ORDER BY segments.date
+    `;
 
-  return {
-    start: format(prevStart),
-    end: format(prevEnd),
-  };
-}
-const startDate = req.query.start_date ? String(req.query.start_date) : null;
-const endDate = req.query.end_date ? String(req.query.end_date) : null;
+    const [summaryRows, chartRows] = await Promise.all([
+      customer.query(summaryQuery),
+      customer.query(chartQuery),
+    ]);
 
-// Filtro de data GAQL
-let dateFilter = `segments.date DURING ${period}`;
+    // Range anterior (sempre)
+    const prevRange = getPreviousDateRange(currentRange.start, currentRange.end);
 
-if (period === "custom") {
-  if (!startDate || !endDate) {
-    return res.status(400).json({
-      ok: false,
-      message: "Período custom exige start_date e end_date (YYYY-MM-DD).",
-    });
-  }
-  dateFilter = `segments.date BETWEEN '${startDate}' AND '${endDate}'`;
-}
+    const previousQuery = `
+      SELECT
+        metrics.cost_micros,
+        metrics.clicks,
+        metrics.conversions
+      FROM customer
+      WHERE segments.date BETWEEN '${prevRange.start}' AND '${prevRange.end}'
+    `;
 
-const summaryQuery = `
-SELECT
-  metrics.cost_micros,
-  metrics.clicks,
-  metrics.conversions
-FROM customer
-WHERE ${dateFilter}
-`;
-const chartQuery = `
-SELECT
-  segments.date,
-  metrics.cost_micros,
-  metrics.conversions
-FROM customer
-WHERE ${dateFilter}
-ORDER BY segments.date
-`;
-    const summaryRows = await customer.query(summaryQuery);
-const chartRows = await customer.query(chartQuery);
-// ============================
-// PERÍODO ANTERIOR (apenas se custom)
-// ============================
+    const previousSummaryRows = await customer.query(previousQuery);
 
-let previousSummaryRows = [];
-
-if (period === "custom" && startDate && endDate) {
-  const prevRange = getPreviousDateRange(startDate, endDate);
-
-  const previousQuery = `
-  SELECT
-    metrics.cost_micros,
-    metrics.clicks,
-    metrics.conversions
-  FROM customer
-  WHERE segments.date BETWEEN '${prevRange.start}' AND '${prevRange.end}'
-  `;
-
-  previousSummaryRows = await customer.query(previousQuery);
-}
+    // Soma atual
     let costMicros = 0;
     let clicks = 0;
     let conversions = 0;
@@ -146,119 +234,54 @@ if (period === "custom" && startDate && endDate) {
       clicks += Number(r.metrics.clicks || 0);
       conversions += Number(r.metrics.conversions || 0);
     }
-// ============================
-// SOMA PERÍODO ANTERIOR
-// ============================
 
-let prevCostMicros = 0;
-let prevClicks = 0;
-let prevConversions = 0;
+    // Soma anterior
+    let prevCostMicros = 0;
+    let prevClicks = 0;
+    let prevConversions = 0;
 
-for (const r of previousSummaryRows) {
-  prevCostMicros += Number(r.metrics.cost_micros || 0);
-  prevClicks += Number(r.metrics.clicks || 0);
-  prevConversions += Number(r.metrics.conversions || 0);
-}
-
-const prevSpend = prevCostMicros / 1_000_000;
-    const spend = costMicros / 1_000_000;
-    // ============================
-// CÁLCULO DE VARIAÇÃO (%)
-// ============================
-
-function calcDelta(current, previous) {
-  if (!previous || previous === 0) return null;
-  return ((current - previous) / previous) * 100;
-}
-
-const delta = {
-  spend: calcDelta(spend, prevSpend),
-  clicks: calcDelta(clicks, prevClicks),
-  conversions: calcDelta(conversions, prevConversions),
-};
-// ============================
-// INSIGHTS AUTOMÁTICOS
-// ============================
-
-function generateInsights(current, previous, delta) {
-  const insights = [];
-
-  // Leads
-  if (current.conversions > 0) {
-    insights.push(
-      `Foram gerados ${current.conversions} leads no período.`
-    );
-  }
-
-  // Investimento
-  if (current.spend > 0) {
-    insights.push(
-      `O investimento total foi de R$ ${current.spend.toFixed(2)}.`
-    );
-  }
-
-  // CPL
-  if (current.conversions > 0) {
-    const cpl = current.spend / current.conversions;
-    insights.push(
-      `O custo médio por lead foi de R$ ${cpl.toFixed(2)}.`
-    );
-  }
-
-  // Crescimento de conversões
-  if (delta.conversions !== null) {
-    if (delta.conversions > 0) {
-      insights.push(
-        `As conversões aumentaram ${delta.conversions.toFixed(1)}% em relação ao período anterior.`
-      );
-    } else if (delta.conversions < 0) {
-      insights.push(
-        `As conversões reduziram ${Math.abs(delta.conversions).toFixed(1)}% comparado ao período anterior.`
-      );
+    for (const r of previousSummaryRows) {
+      prevCostMicros += Number(r.metrics.cost_micros || 0);
+      prevClicks += Number(r.metrics.clicks || 0);
+      prevConversions += Number(r.metrics.conversions || 0);
     }
-  }
 
-  return insights;
-}    
-const chartData = chartRows.map((r) => ({
-  date: r.segments.date,
-  investimento: Number(r.metrics.cost_micros || 0) / 1_000_000,
-  leads: Number(r.metrics.conversions || 0),
-}));
-    const currentData = {
-  spend,
-  clicks,
-  conversions,
-};
+    const spend = costMicros / 1_000_000;
+    const prevSpend = prevCostMicros / 1_000_000;
 
-const previousData = {
-  spend: prevSpend,
-  clicks: prevClicks,
-  conversions: prevConversions,
-};
+    const delta = {
+      spend: calcDelta(spend, prevSpend),
+      clicks: calcDelta(clicks, prevClicks),
+      conversions: calcDelta(conversions, prevConversions),
+    };
 
-const insights = generateInsights(currentData, previousData, delta);
-   return res.status(200).json({
-  ok: true,
-  period,
-  customer_id,
+    const currentData = { spend, clicks, conversions };
+    const insights = generateInsights(currentData, delta);
 
-  current: {
-    spend,
-    clicks,
-    conversions,
-  },
+    const chartData = chartRows.map((r) => ({
+      date: r.segments.date,
+      investimento: Number(r.metrics.cost_micros || 0) / 1_000_000,
+      conversions: Number(r.metrics.conversions || 0),
+    }));
 
-  previous: {
-    spend: prevSpend,
-    clicks: prevClicks,
-    conversions: prevConversions,
-  },
+    return res.status(200).json({
+      ok: true,
+      period,
+      customer_id,
+      range: currentRange,
+      previousRange: prevRange,
 
-  delta,
-  insights,
-  chartData,
-}); 
+      current: currentData,
+      previous: {
+        spend: prevSpend,
+        clicks: prevClicks,
+        conversions: prevConversions,
+      },
+
+      delta,
+      insights,
+      chartData,
+    });
   } catch (err) {
     console.error("ERRO COMPLETO:", err);
 
