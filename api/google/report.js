@@ -270,7 +270,11 @@ export default async function handler(req, res) {
       customer_id,
       range: currentRange,
       previousRange: prevRange,
-
+      debug: req.query.debug === "1" ? {
+  previousQuery,
+  previousRowsCount: Array.isArray(previousSummaryRows) ? previousSummaryRows.length : null,
+  previousFirstRow: Array.isArray(previousSummaryRows) && previousSummaryRows.length > 0 ? previousSummaryRows[0] : null,
+} : undefined,
       current: currentData,
       previous: {
         spend: prevSpend,
