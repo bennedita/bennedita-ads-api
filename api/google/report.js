@@ -215,9 +215,6 @@ export default async function handler(req, res) {
 
     // Range anterior (sempre)
     const prevRange = getPreviousDateRange(currentRange.start, currentRange.end);
-    console.log("[report] period:", period, "customer_id:", customer_id);
-console.log("[report] currentRange:", currentRange);
-console.log("[report] prevRange:", prevRange);
 
     const previousQuery = `
       SELECT
