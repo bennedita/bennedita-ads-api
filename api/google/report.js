@@ -212,6 +212,9 @@ export default async function handler(req, res) {
 
     // Range anterior (sempre)
     const prevRange = getPreviousDateRange(currentRange.start, currentRange.end);
+    console.log("[report] period:", period, "customer_id:", customer_id);
+console.log("[report] currentRange:", currentRange);
+console.log("[report] prevRange:", prevRange);
 
     const previousQuery = `
       SELECT
@@ -223,6 +226,9 @@ export default async function handler(req, res) {
     `;
 
     const previousSummaryRows = await customer.query(previousQuery);
+    console.log("[report] previousQuery:", previousQuery);
+console.log("[report] previousSummaryRows.length:", Array.isArray(previousSummaryRows) ? previousSummaryRows.length : "not-array");
+console.log("[report] previousSummaryRows.first:", Array.isArray(previousSummaryRows) && previousSummaryRows[0] ? previousSummaryRows[0] : null);
 
     // Soma atual
     let costMicros = 0;
