@@ -50,25 +50,28 @@ function getRangeFromPeriod(period) {
 }
 
 // Dado um range, gera o range anterior equivalente (mesma duração)
+// Dado um range, gera o range anterior equivalente (mesma duração, inclusivo)
 function getPreviousDateRange(start, end) {
-  const startDate = new Date(start);
-  const endDate = new Date(end);
+  const startDate = new Date(`${start}T00:00:00Z`);
+  const endDate = new Date(`${end}T00:00:00Z`);
 
-  const diffMs = endDate.getTime() - startDate.getTime();
-  const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+  // duração inclusiva (ex: 20..26 = 7 dias)
+  const msPerDay = 24 * 60 * 60 * 1000;
+  const durationDays = Math.round((endDate.getTime() - startDate.getTime()) / msPerDay) + 1;
 
+  // previousEnd = dia anterior ao start atual
   const prevEnd = new Date(startDate);
-  prevEnd.setDate(prevEnd.getDate() - 1);
+  prevEnd.setUTCDate(prevEnd.getUTCDate() - 1);
 
+  // previousStart = recua (durationDays - 1) a partir do prevEnd
   const prevStart = new Date(prevEnd);
-  prevStart.setDate(prevStart.getDate() - diffDays);
+  prevStart.setUTCDate(prevStart.getUTCDate() - (durationDays - 1));
 
   return {
     start: formatDate(prevStart),
     end: formatDate(prevEnd),
   };
 }
-
 function calcDelta(current, previous) {
   if (!previous || previous === 0) return null;
   return ((current - previous) / previous) * 100;
