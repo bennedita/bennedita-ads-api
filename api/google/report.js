@@ -1,6 +1,19 @@
 import { GoogleAdsApi } from "google-ads-api";
 import { requireInternalAuth } from "../_lib/requireInternalAuth.js";
+// ===== CORS PARA LOVABLE PREVIEW =====
+const ALLOWED_ORIGINS = new Set([
+  "https://id-preview-16911aad-6d58-4ba2-811e-4a7b2cb9e707.lovable.app",
+]);
 
+function setCors(req, res) {
+  const origin = req.headers.origin;
+  if (origin && ALLOWED_ORIGINS.has(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Vary", "Origin");
+  }
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+}
 const client = new GoogleAdsApi({
   client_id: process.env.GOOGLE_CLIENT_ID,
   client_secret: process.env.GOOGLE_CLIENT_SECRET,
@@ -121,8 +134,19 @@ function generateInsights(current, delta) {
 }
 
 export default async function handler(req, res) {
-  const authError = requireInternalAuth(req, res);
-  if (authError) return;
+    setCors(req, res);
+
+  if (req.method === "OPTIONS") {
+    return res.status(204).end();
+  }
+
+  const origin = req.headers.origin;
+  const isLovablePreview = origin && ALLOWED_ORIGINS.has(origin);
+
+  if (!isLovablePreview) {
+    const authError = requireInternalAuth(req, res);
+    if (authError) return;
+  }
 
   try {
     const refresh_token = process.env.GOOGLE_REFRESH_TOKEN;
