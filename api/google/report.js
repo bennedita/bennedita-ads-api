@@ -7,7 +7,7 @@ const ALLOWED_ORIGINS = new Set([
 
 function setCors(req, res) {
   const origin = req.headers.origin;
-  if (origin && ALLOWED_ORIGINS.has(origin)) {
+  if (origin && (origin.includes("lovable.app") || origin.includes("lovable.dev"))) {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Vary", "Origin");
   }
@@ -141,7 +141,9 @@ export default async function handler(req, res) {
   }
 
   const origin = req.headers.origin;
-  const isLovablePreview = origin && ALLOWED_ORIGINS.has(origin);
+  const isLovablePreview =
+  !!origin &&
+  (origin.includes("lovable.app") || origin.includes("lovable.dev"));
 
   if (!isLovablePreview) {
     const authError = requireInternalAuth(req, res);
