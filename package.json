@@ -6,6 +6,7 @@
   "dependencies": {
     "google-ads-api": "^23.0.0",
     "resend": "^3.0.0",
-    "@upstash/redis": "^1.28.4"
+    "@upstash/redis": "^1.28.4",
+    "@neondatabase/serverless": "^0.10.0"
   }
 }
