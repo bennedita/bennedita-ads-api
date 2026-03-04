@@ -102,8 +102,8 @@ export default async function handler(req, res) {
         JOIN clients c ON c.id = r.client_id
         ${where.length ? sql`WHERE ${sql.join(where, sql` AND `)}` : sql``}
         ORDER BY r.created_at DESC
-        LIMIT ${limit}
-        OFFSET ${offset}
+LIMIT ${sql.unsafe(limit)}
+OFFSET ${sql.unsafe(offset)}
       `;
 
       const totalRows = await sql`
