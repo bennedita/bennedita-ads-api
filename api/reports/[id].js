@@ -16,7 +16,7 @@ export default async function handler(req, res) {
         r.id,
         r.client_id,
         c.name as client_name,
-        r.google_customer_id,
+        c.google_customer_id,
         r.period,
         r.summary,
         r.next_actions,
