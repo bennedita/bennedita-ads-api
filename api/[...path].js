@@ -80,17 +80,11 @@ export default async function handler(req, res) {
       const period = url.searchParams.get("period");
       const status = url.searchParams.get("status");
 
-      // Build WHERE dynamically (safe via tagged template pieces)
       const where = [];
       if (client_id) where.push(sql`r.client_id = ${client_id}::uuid`);
       if (google_customer_id) where.push(sql`c.google_customer_id = ${google_customer_id}`);
       if (period) where.push(sql`r.period = ${period}`);
       if (status) where.push(sql`r.status = ${status}`);
-
-      const whereSql =
-        where.length > 0
-          ? sql`WHERE ${sql.join(where, sql` AND `)}`
-          : sql``;
 
       const items = await sql`
         SELECT
@@ -106,7 +100,7 @@ export default async function handler(req, res) {
           r.created_at
         FROM reports r
         JOIN clients c ON c.id = r.client_id
-        ${whereSql}
+        ${where.length ? sql`WHERE ${sql.join(where, sql` AND `)}` : sql``}
         ORDER BY r.created_at DESC
         LIMIT ${limit}
         OFFSET ${offset}
@@ -116,7 +110,7 @@ export default async function handler(req, res) {
         SELECT COUNT(*)::int AS total
         FROM reports r
         JOIN clients c ON c.id = r.client_id
-        ${whereSql}
+        ${where.length ? sql`WHERE ${sql.join(where, sql` AND `)}` : sql``}
       `;
 
       const total = totalRows?.[0]?.total ?? 0;
