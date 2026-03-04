@@ -16,8 +16,16 @@ const id = String(rawId || "").trim().replace(/^"|"$/g, "").replace(/"/g, "");
 const isUuid =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
 
-if (!isUuid) {
-  return res.status(400).json({ success: false, error: "Invalid report id" });
+ if (!isUuid) {
+  return res.status(400).json({
+    success: false,
+    error: "Invalid report id",
+    debug: {
+      received: rawId,
+      cleaned: id,
+      length: id.length
+    }
+  });
 }
 
     const rows = await sql`
