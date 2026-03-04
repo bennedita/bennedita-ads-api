@@ -155,58 +155,7 @@ if (!client_id && !google_customer_id && !period && !status) {
     }
 
     // -----------------------
-        // -----------------------
-    // GET /api/reports (list)
-    // -----------------------
-    if (method === "GET" && path === "/api/reports") {
-      const limit = Math.min(toInt(url.searchParams.get("limit"), 20), 100);
-      const offset = Math.max(toInt(url.searchParams.get("offset"), 0), 0);
-
-      const client_id = url.searchParams.get("client_id") || null;
-      const google_customer_id = url.searchParams.get("google_customer_id") || null;
-      const period = url.searchParams.get("period") || null;
-      const status = url.searchParams.get("status") || null;
-
-     const items = await sql`
-SELECT
-  r.id,
-  r.client_id,
-  c.name AS client_name,
-  c.google_customer_id,
-  r.period,
-  r.summary,
-  r.next_actions,
-  r.snapshot_json,
-  r.status,
-  r.created_at
-FROM reports r
-JOIN clients c ON c.id = r.client_id
-ORDER BY r.created_at DESC
-LIMIT ${limit}
-OFFSET ${offset}
-`;
-
-      const totalRows = await sql`
-        SELECT COUNT(*)::int AS total
-        FROM reports r
-        JOIN clients c ON c.id = r.client_id
-        WHERE
-          (${client_id}::uuid IS NULL OR r.client_id = ${client_id}::uuid)
-          AND (${google_customer_id} IS NULL OR c.google_customer_id = ${google_customer_id})
-          AND (${period} IS NULL OR r.period = ${period})
-          AND (${status} IS NULL OR r.status = ${status})
-      `;
-
-      const total = totalRows?.[0]?.total ?? 0;
-
-      return json(res, 200, {
-        success: true,
-        data: {
-          items,
-          pagination: { limit, offset, total },
-        },
-      });
-    }
+     
     // -----------------------
     // POST /api/reports (create)
     // -----------------------
