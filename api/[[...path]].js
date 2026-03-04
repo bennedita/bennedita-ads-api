@@ -52,6 +52,7 @@ function toInt(v, fallback) {
 export default async function handler(req, res) {
   const url = getUrl(req);
   const path = url.pathname; // e.g. /api/reports/123
+  console.log("PATH DEBUG:", path);
   const method = req.method;
 
   // Basic CORS (optional; helps if frontend hits API directly)
