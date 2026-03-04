@@ -247,10 +247,7 @@ if (!client_id && !google_customer_id && !period && !status) {
 if (method === "GET" && path.includes("/reports/")) {
 
   const parts = path.split("/").filter(Boolean);
-
-  if (parts.length === 3) {
-
-    const id = parts[2];
+  const id = parts[parts.length - 1];
 
     const rows = await sql`
       SELECT
