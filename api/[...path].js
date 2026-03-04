@@ -86,25 +86,56 @@ export default async function handler(req, res) {
       if (period) where.push(sql`r.period = ${period}`);
       if (status) where.push(sql`r.status = ${status}`);
 
-      const items = await sql`
-        SELECT
-          r.id,
-          r.client_id,
-          c.name AS client_name,
-          c.google_customer_id,
-          r.period,
-          r.summary,
-          r.next_actions,
-          r.snapshot_json,
-          r.status,
-          r.created_at
-        FROM reports r
-        JOIN clients c ON c.id = r.client_id
-        ${where.length ? sql`WHERE ${sql.join(where, sql` AND `)}` : sql``}
-        ORDER BY r.created_at DESC
-        LIMIT ${limit}
-        OFFSET ${offset}
-      `;
+      let items;
+
+if (!client_id && !google_customer_id && !period && !status) {
+
+  items = await sql`
+    SELECT
+      r.id,
+      r.client_id,
+      c.name AS client_name,
+      c.google_customer_id,
+      r.period,
+      r.summary,
+      r.next_actions,
+      r.snapshot_json,
+      r.status,
+      r.created_at
+    FROM reports r
+    JOIN clients c ON c.id = r.client_id
+    ORDER BY r.created_at DESC
+    LIMIT ${limit}
+    OFFSET ${offset}
+  `;
+
+} else {
+
+  items = await sql`
+    SELECT
+      r.id,
+      r.client_id,
+      c.name AS client_name,
+      c.google_customer_id,
+      r.period,
+      r.summary,
+      r.next_actions,
+      r.snapshot_json,
+      r.status,
+      r.created_at
+    FROM reports r
+    JOIN clients c ON c.id = r.client_id
+    WHERE
+      (${client_id}::uuid IS NULL OR r.client_id = ${client_id}::uuid)
+      AND (${google_customer_id} IS NULL OR c.google_customer_id = ${google_customer_id})
+      AND (${period} IS NULL OR r.period = ${period})
+      AND (${status} IS NULL OR r.status = ${status})
+    ORDER BY r.created_at DESC
+    LIMIT ${limit}
+    OFFSET ${offset}
+  `;
+
+}
 
       const totalRows = await sql`
         SELECT COUNT(*)::int AS total
