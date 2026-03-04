@@ -9,7 +9,16 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { id } = req.query; // <- vem do [id].js
+    const rawId = Array.isArray(req.query.id) ? req.query.id[0] : req.query.id;
+const id = String(rawId || "").trim().replace(/^"|"$/g, "").replace(/"/g, "");
+
+// valida UUID (aceita v1-v5)
+const isUuid =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
+
+if (!isUuid) {
+  return res.status(400).json({ success: false, error: "Invalid report id" });
+}
 
     const rows = await sql`
       SELECT
