@@ -49,13 +49,18 @@ export default async function handler(req, res) {
       const status = url.searchParams.get("status");
 
       const where = [];
-      if (client_id) where.push(sql`r.client_id = ${client_id}::uuid`);
-      if (google_customer_id) where.push(sql`c.google_customer_id = ${google_customer_id}`);
-      if (period) where.push(sql`r.period = ${period}`);
-      if (status) where.push(sql`r.status = ${status}`);
+if (client_id) where.push(sql`r.client_id = ${client_id}::uuid`);
+if (google_customer_id) where.push(sql`c.google_customer_id = ${google_customer_id}`);
+if (period) where.push(sql`r.period = ${period}`);
+if (status) where.push(sql`r.status = ${status}`);
 
-      const whereSql =
-        where.length > 0 ? sql`WHERE ${sql.join(where, sql` AND `)}` : sql``;
+let whereSql = sql``;
+if (where.length > 0) {
+  whereSql = sql`WHERE ${where[0]}`;
+  for (let i = 1; i < where.length; i++) {
+    whereSql = sql`${whereSql} AND ${where[i]}`;
+  }
+}
 
       const items = await sql`
         SELECT
