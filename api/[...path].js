@@ -373,8 +373,15 @@ if (method === "GET" && path.includes("/reports/")) {
     // Not found
     // -----------------------
     return json(res, 404, { success: false, error: "Not found" });
+ 
+}
   } catch (err) {
     console.error("API error:", err);
-    return json(res, 500, { success: false, error: "Internal server error" });
+
+    return json(res, 500, {
+      success: false,
+      error: "Internal Server Error",
+      details: err?.message || String(err),
+    });
   }
 }
