@@ -244,7 +244,7 @@ if (!client_id && !google_customer_id && !period && !status) {
 // -----------------------
 // GET /api/reports/:id
 // -----------------------
-if (method === "GET" && path.startsWith("/api/reports/") && path.split("/").length === 4) {
+if (method === "GET" && path.includes("/reports/")) {
 
   const parts = path.split("/").filter(Boolean);
 
