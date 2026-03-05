@@ -30,7 +30,7 @@ export default async function handler(req, res) {
         r.created_at
       FROM reports r
       JOIN clients c ON c.id = r.client_id
-      WHERE r.id::text = ${id}
+      WHERE r.id = ${id}::uuid
       LIMIT 1
     `;
 
