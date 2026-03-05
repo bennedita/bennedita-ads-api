@@ -10,7 +10,7 @@ export default async function handler(req, res) {
 
   try {
     const rawId = Array.isArray(req.query.id) ? req.query.id[0] : req.query.id;
-    const id = String(rawId || "").trim().replace(/^"|"$/g, "").replace(/"/g, "");
+    const id = String(rawId || "").trim().replace(/[\\"]/g, "");
 
     if (!id) {
       return res.status(400).json({ success: false, error: "Missing report id" });
@@ -30,7 +30,7 @@ export default async function handler(req, res) {
         r.created_at
       FROM reports r
       JOIN clients c ON c.id = r.client_id
-      WHERE r.id = ${id}
+      WHERE r.id::text = ${id}
       LIMIT 1
     `;
 
@@ -41,6 +41,7 @@ export default async function handler(req, res) {
     }
 
     return res.status(200).json({ success: true, data: item });
+
   } catch (err) {
     return res.status(500).json({
       success: false,
