@@ -52,14 +52,7 @@ export default async function handler(req, res) {
 if (client_id) where.push(sql`r.client_id = ${client_id}::uuid`);
 if (google_customer_id) where.push(sql`c.google_customer_id = ${google_customer_id}`);
 if (period) where.push(sql`r.period = ${period}`);
-if (status) where.push(sql`r.status = ${status}`);
 
-let whereSql = sql``;
-if (where.length > 0) {
-  whereSql = sql`WHERE ${where[0]}`;
-  for (let i = 1; i < where.length; i++) {
-    whereSql = sql`${whereSql} AND ${where[i]}`;
-  }
 }
 
       const items = await sql`
@@ -76,7 +69,6 @@ if (where.length > 0) {
           r.created_at
         FROM reports r
         JOIN clients c ON c.id = r.client_id
-        ${whereSql}
         ORDER BY r.created_at DESC
         LIMIT ${limit}
         OFFSET ${offset}
@@ -86,7 +78,6 @@ if (where.length > 0) {
         SELECT COUNT(*)::int as total
         FROM reports r
         JOIN clients c ON c.id = r.client_id
-        ${whereSql}
       `;
 
       const total = totalRows?.[0]?.total ?? 0;
