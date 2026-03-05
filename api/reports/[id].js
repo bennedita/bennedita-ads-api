@@ -59,18 +59,23 @@ export default async function handler(req, res) {
         });
       });
 
-      const allowed = ["period", "summary", "next_actions", "snapshot_json", "status"];
-      const sets = [];
+     const sets = [];
 
-      for (const f of allowed) {
-        if (body[f] !== undefined) {
-          if (f === "snapshot_json") {
-            sets.push(sql`snapshot_json = ${JSON.stringify(body[f] || {})}::jsonb`);
-          } else {
-            sets.push(sql`${sql([f])} = ${body[f]}`);
-          }
-        }
-      }
+if (body.period !== undefined) {
+  sets.push(sql`period = ${body.period}`);
+}
+if (body.summary !== undefined) {
+  sets.push(sql`summary = ${body.summary}`);
+}
+if (body.next_actions !== undefined) {
+  sets.push(sql`next_actions = ${body.next_actions}`);
+}
+if (body.status !== undefined) {
+  sets.push(sql`status = ${body.status}`);
+}
+if (body.snapshot_json !== undefined) {
+  sets.push(sql`snapshot_json = ${JSON.stringify(body.snapshot_json || {})}::jsonb`);
+}
 
       if (sets.length === 0) {
         return res.status(400).json({ success: false, error: "No valid fields to update" });
