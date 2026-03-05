@@ -115,6 +115,58 @@ if (method === "POST" && path === "/api/reports") {
     data: { id: rows[0].id }
   });
 }
+// PATCH /api/reports/:id
+if (method === "PATCH" && path.startsWith("/api/reports/")) {
+  const id = path.split("/").pop();
+
+  const body = await new Promise((resolve) => {
+    let data = "";
+    req.on("data", (chunk) => (data += chunk));
+    req.on("end", () => {
+      try {
+        resolve(JSON.parse(data || "{}"));
+      } catch {
+        resolve({});
+      }
+    });
+  });
+
+  const fields = ["period", "summary", "next_actions", "snapshot_json", "status"];
+  const sets = [];
+
+  for (const f of fields) {
+    if (body[f] !== undefined) {
+      if (f === "snapshot_json") {
+        sets.push(sql`snapshot_json = ${JSON.stringify(body[f] || {})}::jsonb`);
+      } else {
+        sets.push(sql`${sql([f])} = ${body[f]}`);
+      }
+    }
+  }
+
+  if (sets.length === 0) {
+    return json(res, 400, { success: false, error: "No valid fields to update" });
+  }
+
+  // monta "SET a=..., b=..." sem sql.join (pra evitar $1 quebrado)
+  let setSql = sql`${sets[0]}`;
+  for (let i = 1; i < sets.length; i++) {
+    setSql = sql`${setSql}, ${sets[i]}`;
+  }
+
+  const updated = await sql`
+    UPDATE reports
+    SET ${setSql}
+    WHERE id = ${id}::uuid
+    RETURNING id
+  `;
+
+  if (!updated || updated.length === 0) {
+    return json(res, 404, { success: false, error: "Report not found" });
+  }
+
+  return json(res, 200, { success: true, data: { id: updated[0].id } });
+}    
 // GET /api/reports/:id
 if (method === "GET" && path.startsWith("/api/reports/")) {
 
