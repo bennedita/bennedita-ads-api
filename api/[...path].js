@@ -94,7 +94,6 @@ if (period) where.push(sql`r.period = ${period}`);
     // Se você ainda estiver usando outras rotas no catch-all,
     // elas precisam ser reintroduzidas aqui (POST/PATCH etc).
     return json(res, 404, { success: false, error: "Not found" });
-  return json(res, 404, { success: false, error: "Not found" });
 } catch (err) {
   console.error("API error:", err);
   return json(res, 500, {
