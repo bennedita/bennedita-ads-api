@@ -69,7 +69,38 @@ export default async function handler(req, res) {
         data: { items, pagination: { limit, offset, total } },
       });
     }
+// GET /api/reports/:id
+if (method === "GET" && path.startsWith("/api/reports/")) {
 
+  const id = path.split("/").pop();
+
+  const rows = await sql`
+    SELECT
+      r.id,
+      r.client_id,
+      c.name as client_name,
+      c.google_customer_id,
+      r.period,
+      r.summary,
+      r.next_actions,
+      r.snapshot_json,
+      r.status,
+      r.created_at
+    FROM reports r
+    JOIN clients c ON c.id = r.client_id
+    WHERE r.id = ${id}::uuid
+    LIMIT 1
+  `;
+
+  if (!rows || rows.length === 0) {
+    return json(res, 404, { success: false, error: "Report not found" });
+  }
+
+  return json(res, 200, {
+    success: true,
+    data: rows[0]
+  });
+}
     return json(res, 404, { success: false, error: "Not found" });
   } catch (err) {
     console.error("API error:", err);
