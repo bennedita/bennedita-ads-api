@@ -43,21 +43,60 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, data: item });
     }
 
-    // -----------------------
-    // PATCH /api/reports/:id
-    // -----------------------
-    if (req.method === "PATCH") {
-      const body = await new Promise((resolve) => {
-        let data = "";
-        req.on("data", (chunk) => (data += chunk));
-        req.on("end", () => {
-          try {
-            resolve(JSON.parse(data || "{}"));
-          } catch {
-            resolve({});
-          }
-        });
-      });
+   // -----------------------
+// PATCH /api/reports/:id
+// -----------------------
+if (req.method === "PATCH") {
+  const body = await new Promise((resolve) => {
+    let data = "";
+    req.on("data", (chunk) => (data += chunk));
+    req.on("end", () => {
+      try {
+        resolve(JSON.parse(data || "{}"));
+      } catch {
+        resolve({});
+      }
+    });
+  });
+
+  const hasAny =
+    body.period !== undefined ||
+    body.summary !== undefined ||
+    body.next_actions !== undefined ||
+    body.status !== undefined ||
+    body.snapshot_json !== undefined;
+
+  if (!hasAny) {
+    return res.status(400).json({ success: false, error: "No valid fields to update" });
+  }
+
+  const period = body.period ?? null;
+  const summary = body.summary ?? null;
+  const next_actions = body.next_actions ?? null;
+  const status = body.status ?? null;
+
+  // snapshot_json: só passa jsonb quando vier no body
+  const snapshot_json =
+    body.snapshot_json === undefined ? null : JSON.stringify(body.snapshot_json || {});
+
+  const updated = await sql`
+    UPDATE reports
+    SET
+      period = COALESCE(${period}, period),
+      summary = COALESCE(${summary}, summary),
+      next_actions = COALESCE(${next_actions}, next_actions),
+      status = COALESCE(${status}, status),
+      snapshot_json = COALESCE(${snapshot_json}::jsonb, snapshot_json)
+    WHERE id::text = ${id}
+    RETURNING id
+  `;
+
+  if (!updated || updated.length === 0) {
+    return res.status(404).json({ success: false, error: "Report not found" });
+  }
+
+  return res.status(200).json({ success: true, data: { id: updated[0].id } });
+}
 
      const sets = [];
 
