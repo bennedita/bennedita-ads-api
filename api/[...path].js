@@ -21,39 +21,22 @@ export default async function handler(req, res) {
   const path = url.pathname;
   const method = req.method || "GET";
 
-  // Basic CORS
+  // CORS
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,PATCH,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, x-internal-api-key");
-
   if (method === "OPTIONS") return res.status(204).end();
 
   try {
-    // -----------------------
     // GET /api/health
-    // -----------------------
     if (method === "GET" && path === "/api/health") {
       return json(res, 200, { success: true, status: "ok" });
     }
 
-    // -----------------------
-    // GET /api/reports (list)
-    // -----------------------
+    // GET /api/reports (list - sem filtros por enquanto)
     if (method === "GET" && path === "/api/reports") {
       const limit = Math.min(toInt(url.searchParams.get("limit"), 20), 100);
       const offset = Math.max(toInt(url.searchParams.get("offset"), 0), 0);
-
-      const client_id = url.searchParams.get("client_id");
-      const google_customer_id = url.searchParams.get("google_customer_id");
-      const period = url.searchParams.get("period");
-      const status = url.searchParams.get("status");
-
-      const where = [];
-if (client_id) where.push(sql`r.client_id = ${client_id}::uuid`);
-if (google_customer_id) where.push(sql`c.google_customer_id = ${google_customer_id}`);
-if (period) where.push(sql`r.period = ${period}`);
-
-}
 
       const items = await sql`
         SELECT
@@ -77,29 +60,23 @@ if (period) where.push(sql`r.period = ${period}`);
       const totalRows = await sql`
         SELECT COUNT(*)::int as total
         FROM reports r
-        JOIN clients c ON c.id = r.client_id
       `;
 
       const total = totalRows?.[0]?.total ?? 0;
 
       return json(res, 200, {
         success: true,
-        data: {
-          items,
-          pagination: { limit, offset, total },
-        },
+        data: { items, pagination: { limit, offset, total } },
       });
     }
 
-    // Se você ainda estiver usando outras rotas no catch-all,
-    // elas precisam ser reintroduzidas aqui (POST/PATCH etc).
     return json(res, 404, { success: false, error: "Not found" });
-} catch (err) {
-  console.error("API error:", err);
-  return json(res, 500, {
-    success: false,
-    error: "Internal Server Error",
-    details: err?.message || String(err),
-  });
-}
+  } catch (err) {
+    console.error("API error:", err);
+    return json(res, 500, {
+      success: false,
+      error: "Internal Server Error",
+      details: err?.message || String(err),
+    });
+  }
 }
