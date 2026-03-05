@@ -69,6 +69,52 @@ export default async function handler(req, res) {
         data: { items, pagination: { limit, offset, total } },
       });
     }
+    // POST /api/reports
+if (method === "POST" && path === "/api/reports") {
+  const body = await new Promise((resolve) => {
+    let data = "";
+    req.on("data", chunk => data += chunk);
+    req.on("end", () => resolve(JSON.parse(data || "{}")));
+  });
+
+  const {
+    client_id,
+    period,
+    summary,
+    next_actions,
+    snapshot_json,
+    status
+  } = body;
+
+  if (!client_id || !period) {
+    return json(res, 400, { success: false, error: "Missing required fields" });
+  }
+
+  const rows = await sql`
+    INSERT INTO reports (
+      client_id,
+      period,
+      summary,
+      next_actions,
+      snapshot_json,
+      status
+    )
+    VALUES (
+      ${client_id}::uuid,
+      ${period},
+      ${summary},
+      ${next_actions},
+      ${JSON.stringify(snapshot_json || {})}::jsonb,
+      ${status || "rascunho"}
+    )
+    RETURNING id
+  `;
+
+  return json(res, 201, {
+    success: true,
+    data: { id: rows[0].id }
+  });
+}
 // GET /api/reports/:id
 if (method === "GET" && path.startsWith("/api/reports/")) {
 
