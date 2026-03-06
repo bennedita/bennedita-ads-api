@@ -199,6 +199,69 @@ if (method === "GET" && path.startsWith("/api/reports/")) {
     data: rows[0]
   });
 }
+    // GET /api/google/report
+if (method === "GET" && path === "/api/google/report") {
+  const customerIdRaw = url.searchParams.get("customer_id") || "";
+  const period = url.searchParams.get("period") || "";
+
+  const customerId = String(customerIdRaw).replace(/\D/g, "");
+
+  if (!customerId) {
+    return json(res, 400, {
+      success: false,
+      error: "Missing customer_id",
+    });
+  }
+
+  const rows = await sql`
+    SELECT
+      r.id,
+      r.period,
+      r.snapshot_json,
+      r.created_at,
+      c.google_customer_id,
+      c.name as client_name
+    FROM reports r
+    JOIN clients c ON c.id = r.client_id
+    WHERE REPLACE(REPLACE(REPLACE(c.google_customer_id, '-', ''), ' ', ''), '.', '') = ${customerId}
+    ORDER BY r.created_at DESC
+    LIMIT 1
+  `;
+
+  if (!rows || rows.length === 0) {
+    return json(res, 404, {
+      success: false,
+      error: "Report not found for this customer",
+    });
+  }
+
+  const row = rows[0];
+  const snapshot = row.snapshot_json || {};
+
+  const spend = Number(snapshot.cost ?? snapshot.spend ?? 0);
+  const conversions = Number(snapshot.leads ?? snapshot.conversions ?? 0);
+  const clicks = Number(snapshot.clicks ?? 0);
+  const impressions = Number(snapshot.impressions ?? 0);
+
+  return json(res, 200, {
+    period: row.period || period,
+    customer_id: row.google_customer_id || customerIdRaw,
+    clientName: row.client_name || "",
+    generatedAt: row.created_at,
+    data: {
+      spend,
+      clicks,
+      conversions,
+      impressions,
+      ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
+      cpc: clicks > 0 ? spend / clicks : 0,
+      cpa: conversions > 0 ? spend / conversions : 0,
+    },
+    campaigns: snapshot.campaigns || [],
+    chartData: snapshot.chartData || [],
+    insights: snapshot.insights || [],
+  });
+}
     return json(res, 404, { success: false, error: "Not found" });
   } catch (err) {
     console.error("API error:", err);
