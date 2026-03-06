@@ -166,7 +166,21 @@ if (method === "PATCH" && path.startsWith("/api/reports/")) {
   }
 
   return json(res, 200, { success: true, data: { id: updated[0].id } });
-}    
+}  
+  // GET /api/google/report
+if (method === "GET" && path === "/api/google/report") {
+  const customerIdRaw = url.searchParams.get("customer_id") || "";
+  const period = url.searchParams.get("period") || "";
+
+  const customerId = String(customerIdRaw).replace(/\D/g, "");
+
+  if (!customerId) {
+    return json(res, 400, {
+      success: false,
+      error: "Missing customer_id",
+    });
+  }
+  
 // GET /api/reports/:id
 if (method === "GET" && path.startsWith("/api/reports/")) {
 
@@ -199,20 +213,7 @@ if (method === "GET" && path.startsWith("/api/reports/")) {
     data: rows[0]
   });
 }
-    // GET /api/google/report
-if (method === "GET" && path === "/api/google/report") {
-  const customerIdRaw = url.searchParams.get("customer_id") || "";
-  const period = url.searchParams.get("period") || "";
-
-  const customerId = String(customerIdRaw).replace(/\D/g, "");
-
-  if (!customerId) {
-    return json(res, 400, {
-      success: false,
-      error: "Missing customer_id",
-    });
-  }
-
+    
   const rows = await sql`
     SELECT
       r.id,
