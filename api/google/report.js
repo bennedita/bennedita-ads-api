@@ -1,4 +1,10 @@
-import { sql } from "../_lib/db.js";
+import { GoogleAdsApi } from "google-ads-api";
+
+const client = new GoogleAdsApi({
+  client_id: process.env.GOOGLE_ADS_CLIENT_ID,
+  client_secret: process.env.GOOGLE_ADS_CLIENT_SECRET,
+  developer_token: process.env.GOOGLE_ADS_DEVELOPER_TOKEN,
+});
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -22,63 +28,61 @@ export default async function handler(req, res) {
       });
     }
 
-    const cleanCustomerId = String(customer_id).replace(/\D/g, "");
+    const cleanId = String(customer_id).replace(/\D/g, "");
 
-    const rows = await sql`
+    const customer = client.Customer({
+      customer_id: cleanId,
+      refresh_token: process.env.GOOGLE_ADS_REFRESH_TOKEN,
+      login_customer_id: process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID,
+    });
+
+    const rows = await customer.query(`
       SELECT
-        r.id,
-        r.period,
-        r.snapshot_json,
-        r.created_at,
-        c.google_customer_id,
-        c.name as client_name
-      FROM reports r
-      JOIN clients c ON c.id = r.client_id
-      WHERE REPLACE(REPLACE(REPLACE(c.google_customer_id,'-',''),' ',''),'.','') = ${cleanCustomerId}
-      ORDER BY r.created_at DESC
-      LIMIT 1
-    `;
+        metrics.cost_micros,
+        metrics.clicks,
+        metrics.impressions,
+        metrics.conversions
+      FROM customer
+      WHERE segments.date DURING LAST_30_DAYS
+    `);
 
-    if (!rows || rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: "Report not found",
-      });
+    let spend = 0;
+    let clicks = 0;
+    let impressions = 0;
+    let conversions = 0;
+
+    for (const r of rows) {
+      spend += Number(r.metrics.cost_micros || 0) / 1_000_000;
+      clicks += Number(r.metrics.clicks || 0);
+      impressions += Number(r.metrics.impressions || 0);
+      conversions += Number(r.metrics.conversions || 0);
     }
 
-    const row = rows[0];
-    const snapshot = row.snapshot_json || {};
-
-    const spend = Number(snapshot.cost ?? snapshot.spend ?? 0);
-    const conversions = Number(snapshot.leads ?? snapshot.conversions ?? 0);
-    const clicks = Number(snapshot.clicks ?? 0);
-    const impressions = Number(snapshot.impressions ?? 0);
+    const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
+    const cpa = conversions > 0 ? spend / conversions : 0;
 
     return res.status(200).json({
-      period: row.period || period,
-      customer_id: row.google_customer_id,
-      clientName: row.client_name,
-      generatedAt: row.created_at,
+      period,
+      customer_id,
       data: {
         spend,
         clicks,
-        conversions,
         impressions,
-        ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
-        cpc: clicks > 0 ? spend / clicks : 0,
-        cpa: conversions > 0 ? spend / conversions : 0,
+        conversions,
+        ctr,
+        cpa,
       },
-      campaigns: snapshot.campaigns || [],
-      chartData: snapshot.chartData || [],
-      insights: snapshot.insights || [],
+      campaigns: [],
+      chartData: [],
+      insights: [],
+      source: "google_ads",
     });
-
   } catch (err) {
     console.error(err);
 
     return res.status(500).json({
       success: false,
-      error: "Internal Server Error",
+      error: "Google Ads request failed",
       details: err.message,
     });
   }
