@@ -45,7 +45,23 @@ export default async function handler(req, res) {
       FROM customer
       WHERE segments.date DURING LAST_30_DAYS
     `);
-
+    const campaignRows = await customer.query(`
+      SELECT
+        campaign.name,
+        metrics.cost_micros,
+        metrics.conversions
+      FROM campaign
+      WHERE segments.date DURING LAST_30_DAYS
+    `);
+        const dailyRows = await customer.query(`
+      SELECT
+        segments.date,
+        metrics.cost_micros,
+        metrics.conversions
+      FROM customer
+      WHERE segments.date DURING LAST_30_DAYS
+      ORDER BY segments.date
+    `);
     let spend = 0;
     let clicks = 0;
     let impressions = 0;
@@ -57,7 +73,23 @@ export default async function handler(req, res) {
       impressions += Number(r.metrics.impressions || 0);
       conversions += Number(r.metrics.conversions || 0);
     }
+    const campaigns = campaignRows.map((row) => {
+      const investimento = Number(row.metrics.cost_micros || 0) / 1_000_000;
+      const leads = Number(row.metrics.conversions || 0);
+      const cpa = leads > 0 ? investimento / leads : 0;
 
+      return {
+        name: row.campaign.name || "Campanha sem nome",
+        investimento,
+        leads,
+        cpa,
+      };
+    });
+        const chartData = dailyRows.map((row) => ({
+      name: row.segments.date,
+      investimento: Number(row.metrics.cost_micros || 0) / 1_000_000,
+      leads: Number(row.metrics.conversions || 0),
+    }));
     const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
     const cpa = conversions > 0 ? spend / conversions : 0;
 
@@ -72,9 +104,9 @@ export default async function handler(req, res) {
         ctr,
         cpa,
       },
-      campaigns: [],
-      chartData: [],
-      insights: [],
+     campaigns,
+chartData,
+insights: [],
       source: "google_ads",
     });
   } catch (err) {
