@@ -73,18 +73,37 @@ export default async function handler(req, res) {
       impressions += Number(r.metrics.impressions || 0);
       conversions += Number(r.metrics.conversions || 0);
     }
-    const campaigns = campaignRows.map((row) => {
+        const campaignMap = new Map();
+
+    for (const row of campaignRows) {
+      const name = row.campaign.name || "Campanha sem nome";
       const investimento = Number(row.metrics.cost_micros || 0) / 1_000_000;
       const leads = Number(row.metrics.conversions || 0);
-      const cpa = leads > 0 ? investimento / leads : 0;
 
-      return {
-        name: row.campaign.name || "Campanha sem nome",
-        investimento,
-        leads,
-        cpa,
-      };
-    });
+      if (!campaignMap.has(name)) {
+        campaignMap.set(name, {
+          name,
+          investimento: 0,
+          leads: 0,
+          cpa: 0,
+        });
+      }
+
+      const current = campaignMap.get(name);
+      current.investimento += investimento;
+      current.leads += leads;
+    }
+
+    const campaigns = Array.from(campaignMap.values())
+      .map((campaign) => ({
+        ...campaign,
+        cpa: campaign.leads > 0 ? campaign.investimento / campaign.leads : 0,
+      }))
+      .filter((campaign) => campaign.investimento > 0 || campaign.leads > 0)
+      .sort((a, b) => {
+        if (b.leads !== a.leads) return b.leads - a.leads;
+        return b.investimento - a.investimento;
+      });
         const chartData = dailyRows.map((row) => ({
       name: row.segments.date,
       investimento: Number(row.metrics.cost_micros || 0) / 1_000_000,
