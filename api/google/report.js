@@ -152,6 +152,7 @@ chartData,
 topKeywords,
 insights: [],
 source: "google_ads",
+});
   } catch (err) {
     console.error(err);
 
