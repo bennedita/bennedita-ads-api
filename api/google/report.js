@@ -62,6 +62,20 @@ export default async function handler(req, res) {
       WHERE segments.date DURING LAST_30_DAYS
       ORDER BY segments.date
     `);
+        const keywordRows = await customer.query(`
+      SELECT
+        ad_group_criterion.keyword.text,
+        metrics.clicks,
+        metrics.impressions,
+        metrics.ctr,
+        metrics.average_cpc,
+        metrics.cost_micros,
+        metrics.conversions
+      FROM keyword_view
+      WHERE segments.date DURING LAST_30_DAYS
+      ORDER BY metrics.clicks DESC
+      LIMIT 10
+    `);
     let spend = 0;
     let clicks = 0;
     let impressions = 0;
