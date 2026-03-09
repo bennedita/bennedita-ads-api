@@ -152,6 +152,7 @@ export default async function handler(req, res) {
   topKeywords,
   insights: [],
   source: "google_ads",
+      debugVersion: "keywords-v1",
 });
   } catch (err) {
     console.error(err);
