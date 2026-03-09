@@ -123,6 +123,24 @@ export default async function handler(req, res) {
       investimento: Number(row.metrics.cost_micros || 0) / 1_000_000,
       leads: Number(row.metrics.conversions || 0),
     }));
+    const topKeywords = keywordRows.map((row) => ({
+  keyword: row.ad_group_criterion.keyword.text || "",
+  clicks: Number(row.metrics.clicks || 0),
+  impressions: Number(row.metrics.impressions || 0),
+  ctr: Number(row.metrics.ctr || 0) * 100,
+  cpc: Number(row.metrics.average_cpc || 0) / 1_000_000,
+  spend: Number(row.metrics.cost_micros || 0) / 1_000_000,
+  conversions: Number(row.metrics.conversions || 0),
+}));
+    const topKeywords = keywordRows.map((row) => ({
+  keyword: row.ad_group_criterion.keyword.text || "",
+  clicks: Number(row.metrics.clicks || 0),
+  impressions: Number(row.metrics.impressions || 0),
+  ctr: Number(row.metrics.ctr || 0) * 100,
+  cpc: Number(row.metrics.average_cpc || 0) / 1_000_000,
+  spend: Number(row.metrics.cost_micros || 0) / 1_000_000,
+  conversions: Number(row.metrics.conversions || 0),
+}));
     const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
     const cpa = conversions > 0 ? spend / conversions : 0;
 
@@ -137,11 +155,11 @@ export default async function handler(req, res) {
         ctr,
         cpa,
       },
-     campaigns,
+ campaigns,
 chartData,
+topKeywords,
 insights: [],
-      source: "google_ads",
-    });
+source: "google_ads",
   } catch (err) {
     console.error(err);
 
