@@ -137,21 +137,21 @@ export default async function handler(req, res) {
     const cpa = conversions > 0 ? spend / conversions : 0;
 
     return res.status(200).json({
-      period,
-      customer_id,
-      data: {
-        spend,
-        clicks,
-        impressions,
-        conversions,
-        ctr,
-        cpa,
-      },
- campaigns,
-chartData,
-topKeywords,
-insights: [],
-source: "google_ads",
+  period,
+  customer_id,
+  data: {
+    spend,
+    clicks,
+    impressions,
+    conversions,
+    ctr,
+    cpa,
+  },
+  campaigns,
+  chartData,
+  topKeywords,
+  insights: [],
+  source: "google_ads",
 });
   } catch (err) {
     console.error(err);
