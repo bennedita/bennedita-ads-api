@@ -46,13 +46,14 @@ export default async function handler(req, res) {
       WHERE segments.date DURING LAST_30_DAYS
     `);
     const campaignRows = await customer.query(`
-      SELECT
-        campaign.name,
-        metrics.cost_micros,
-        metrics.conversions
-      FROM campaign
-      WHERE segments.date DURING LAST_30_DAYS
-    `);
+  SELECT
+    campaign.name,
+    metrics.cost_micros,
+    metrics.clicks,
+    metrics.conversions
+  FROM campaign
+  WHERE segments.date DURING LAST_30_DAYS
+`);
         const dailyRows = await customer.query(`
       SELECT
         segments.date,
