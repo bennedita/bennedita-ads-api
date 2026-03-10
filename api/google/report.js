@@ -90,24 +90,27 @@ export default async function handler(req, res) {
     }
         const campaignMap = new Map();
 
-    for (const row of campaignRows) {
-      const name = row.campaign.name || "Campanha sem nome";
-      const investimento = Number(row.metrics.cost_micros || 0) / 1_000_000;
-      const leads = Number(row.metrics.conversions || 0);
+for (const row of campaignRows) {
+  const name = row.campaign.name || "Campanha sem nome";
+  const investimento = Number(row.metrics.cost_micros || 0) / 1_000_000;
+  const clicks = Number(row.metrics.clicks || 0);
+  const leads = Number(row.metrics.conversions || 0);
 
-      if (!campaignMap.has(name)) {
-        campaignMap.set(name, {
-          name,
-          investimento: 0,
-          leads: 0,
-          cpa: 0,
-        });
-      }
+  if (!campaignMap.has(name)) {
+    campaignMap.set(name, {
+      name,
+      investimento: 0,
+      clicks: 0,
+      leads: 0,
+      cpa: 0,
+    });
+  }
 
-      const current = campaignMap.get(name);
-      current.investimento += investimento;
-      current.leads += leads;
-    }
+  const current = campaignMap.get(name);
+  current.investimento += investimento;
+  current.clicks += clicks;
+  current.leads += leads;
+}
 
     const campaigns = Array.from(campaignMap.values())
       .map((campaign) => ({
