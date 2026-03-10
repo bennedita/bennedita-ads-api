@@ -128,15 +128,44 @@ for (const row of campaignRows) {
       leads: Number(row.metrics.conversions || 0),
     }));
     
-    const topKeywords = keywordRows.map((row) => ({
-  keyword: row.ad_group_criterion.keyword.text || "",
-  clicks: Number(row.metrics.clicks || 0),
-  impressions: Number(row.metrics.impressions || 0),
-  ctr: Number(row.metrics.ctr || 0) * 100,
-  cpc: Number(row.metrics.average_cpc || 0) / 1_000_000,
-  spend: Number(row.metrics.cost_micros || 0) / 1_000_000,
-  conversions: Number(row.metrics.conversions || 0),
-}));
+    const keywordMap = new Map();
+
+for (const row of keywordRows) {
+  const keyword = row.ad_group_criterion.keyword.text || "Sem keyword";
+  const clicks = Number(row.metrics.clicks || 0);
+  const impressions = Number(row.metrics.impressions || 0);
+  const spend = Number(row.metrics.cost_micros || 0) / 1_000_000;
+  const conversions = Number(row.metrics.conversions || 0);
+
+  if (!keywordMap.has(keyword)) {
+    keywordMap.set(keyword, {
+      keyword,
+      clicks: 0,
+      impressions: 0,
+      spend: 0,
+      conversions: 0,
+    });
+  }
+
+  const current = keywordMap.get(keyword);
+  current.clicks += clicks;
+  current.impressions += impressions;
+  current.spend += spend;
+  current.conversions += conversions;
+}
+
+const topKeywords = Array.from(keywordMap.values())
+  .map((item) => ({
+    keyword: item.keyword,
+    clicks: item.clicks,
+    impressions: item.impressions,
+    ctr: item.impressions > 0 ? (item.clicks / item.impressions) * 100 : 0,
+    cpc: item.clicks > 0 ? item.spend / item.clicks : 0,
+    spend: item.spend,
+    conversions: item.conversions,
+  }))
+  .sort((a, b) => b.clicks - a.clicks)
+  .slice(0, 10);
     const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
     const cpa = conversions > 0 ? spend / conversions : 0;
 
