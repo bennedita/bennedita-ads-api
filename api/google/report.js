@@ -164,7 +164,7 @@ const topKeywords = Array.from(keywordMap.values())
     spend: item.spend,
     conversions: item.conversions,
   }))
-  .sort((a, b) => b.clicks - a.clicks)
+  .sort((a, b) => b.conversions - a.conversions || b.clicks - a.clicks)
   .slice(0, 10);
     const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
     const cpa = conversions > 0 ? spend / conversions : 0;
