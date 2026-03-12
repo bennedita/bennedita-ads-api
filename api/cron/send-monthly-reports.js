@@ -4,18 +4,45 @@ export default async function handler(req, res) {
 
   try {
 
-    const clients = [
-      {
-        name: "BrBrita",
-        slug: "brbrita",
-        email: "seu-email@exemplo.com"
-      },
-      {
-        name: "MF Certificados",
-        slug: "mf-certificados",
-        email: "seu-email@exemplo.com"
-      }
-    ]
+   const clients = [
+
+  {
+    name: "BrBrita",
+    slug: "brbrita",
+    email: "viniciusfariabsb@gmail.com"
+  },
+
+  {
+    name: "MF Certificados",
+    slug: "mf-certificados",
+    email: "viniciusfariabsb@gmail.com"
+  },
+
+  {
+    name: "Vinicius Cantor",
+    slug: "vinicius-cantor",
+    email: "viniciusfariabsb@gmail.com"
+  },
+
+  {
+    name: "BSB Limpeza",
+    slug: "bsblimpeza",
+    email: "viniciusfariabsb@gmail.com"
+  },
+
+  {
+    name: "Gráfica Mariano",
+    slug: "grafica-mariano",
+    email: "viniciusfariabsb@gmail.com"
+  },
+
+  {
+    name: "Habka Fisioterapia",
+    slug: "habka-fisioterapia",
+    email: "viniciusfariabsb@gmail.com"
+  }
+
+]
 
     const results = []
 
