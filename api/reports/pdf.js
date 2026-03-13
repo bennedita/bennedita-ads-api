@@ -1,5 +1,5 @@
 import chromium from "@sparticuz/chromium";
-import puppeteer from "puppeteer-core";
+import { chromium as playwright } from "playwright-core";
 
 export default async function handler(req, res) {
   try {
@@ -14,20 +14,18 @@ export default async function handler(req, res) {
 
     const reportUrl = `https://lead-report-peek.lovable.app/r/${slug}`;
 
-    const browser = await puppeteer.launch({
+    const browser = await playwright.launch({
       args: chromium.args,
-      defaultViewport: chromium.defaultViewport,
       executablePath: await chromium.executablePath(),
-      headless: chromium.headless,
+      headless: true,
     });
 
     const page = await browser.newPage();
+
     await page.goto(reportUrl, {
-      waitUntil: "networkidle0",
+      waitUntil: "networkidle",
       timeout: 60000,
     });
-
-    await page.emulateMediaType("screen");
 
     const pdfBuffer = await page.pdf({
       format: "A4",
