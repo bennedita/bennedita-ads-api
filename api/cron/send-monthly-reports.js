@@ -78,7 +78,21 @@ export default async function handler(req, res) {
       }
 
       const reportUrl = `https://lead-report-peek.lovable.app/r/${clientSlug}`;
+const pdfResponse = await fetch("https://api.pdfshift.io/v3/convert/pdf", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    Authorization:
+      "Basic " + Buffer.from(process.env.PDFSHIFT_API_KEY + ":").toString("base64"),
+  },
+  body: JSON.stringify({
+    source: reportUrl,
+    landscape: false,
+    use_print: false,
+  }),
+});
 
+const pdfBuffer = Buffer.from(await pdfResponse.arrayBuffer());
       console.log(`Sending report to: ${clientName} <${clientEmail}>`);
 
       try {
@@ -97,6 +111,12 @@ export default async function handler(req, res) {
             </p>
             <p>Este relatório foi gerado automaticamente pela plataforma Bennedita.</p>
           `,
+          attachments: [
+  {
+    filename: `relatorio-${clientSlug}.pdf`,
+    content: pdfBuffer
+  }
+],
         });
 
         console.log("Resend response:", response);
