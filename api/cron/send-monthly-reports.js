@@ -79,6 +79,9 @@ export default async function handler(req, res) {
       }
 
       const reportUrl = `https://lead-report-peek.lovable.app/r/${clientSlug}`;
+      console.log("PDFSHIFT env loaded:", !!process.env.PDFSHIFT_API_KEY);
+console.log("PDFSHIFT key prefix:", process.env.PDFSHIFT_API_KEY?.slice(0, 8));
+console.log("PDFSHIFT key length:", process.env.PDFSHIFT_API_KEY?.length);
 const pdfResponse = await fetch("https://api.pdfshift.io/v3/convert/pdf", {
   method: "POST",
   headers: {
