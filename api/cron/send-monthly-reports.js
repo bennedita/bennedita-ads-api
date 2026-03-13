@@ -93,6 +93,7 @@ const pdfResponse = await fetch("https://api.pdfshift.io/v3/convert/pdf", {
   },
   body: JSON.stringify({
     source: reportUrl,
+wait_for: 3000
   }),
 });
 
