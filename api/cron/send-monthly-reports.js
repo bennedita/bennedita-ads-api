@@ -11,6 +11,27 @@ function sleep(ms) {
 export default async function handler(req, res) {
   console.log("Running monthly report job");
 
+  if (!process.env.RESEND_API_KEY) {
+    return res.status(500).json({
+      success: false,
+      error: "Missing RESEND_API_KEY",
+    });
+  }
+
+  if (!process.env.RESEND_FROM_EMAIL) {
+    return res.status(500).json({
+      success: false,
+      error: "Missing RESEND_FROM_EMAIL",
+    });
+  }
+
+  if (!process.env.POSTGRES_URL) {
+    return res.status(500).json({
+      success: false,
+      error: "Missing POSTGRES_URL",
+    });
+  }
+
   try {
     const clients = await sql`
       SELECT
@@ -19,9 +40,10 @@ export default async function handler(req, res) {
         email,
         report_slug,
         google_customer_id,
-        created_at
+        created_at,
+        active
       FROM clients
-      WHERE active IS TRUE
+      WHERE active = true
       ORDER BY created_at ASC
     `;
 
@@ -45,12 +67,12 @@ export default async function handler(req, res) {
       const clientEmail = client.email;
       const clientSlug = client.report_slug;
 
-      if (!clientEmail || !clientSlug) {
+      if (!clientName || !clientEmail || !clientSlug) {
         failed.push({
           client: clientName || "Unknown client",
           email: clientEmail || null,
           report: null,
-          error: "Missing email or report_slug in database",
+          error: "Missing required fields: name, email or report_slug",
         });
         continue;
       }
