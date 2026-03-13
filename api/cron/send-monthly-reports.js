@@ -1,6 +1,8 @@
 import { Resend } from "resend";
+import { neon } from "@neondatabase/serverless";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
+const sql = neon(process.env.POSTGRES_URL);
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -10,28 +12,58 @@ export default async function handler(req, res) {
   console.log("Running monthly report job");
 
   try {
-    const clients = [
-      { name: "BrBrita", slug: "brbrita", email: "viniciusfariabsb@gmail.com" },
-      { name: "MF Certificados", slug: "mf-certificados", email: "viniciusfariabsb@gmail.com" },
-      { name: "Vinicius Cantor", slug: "vinicius-cantor", email: "viniciusfariabsb@gmail.com" },
-      { name: "BSB Limpeza", slug: "bsblimpeza", email: "viniciusfariabsb@gmail.com" },
-      { name: "Gráfica Mariano", slug: "grafica-mariano", email: "viniciusfariabsb@gmail.com" },
-      { name: "Habka Fisioterapia", slug: "habka-fisioterapia", email: "viniciusfariabsb@gmail.com" },
-    ];
+    const clients = await sql`
+      SELECT
+        id,
+        name,
+        email,
+        report_slug,
+        google_customer_id,
+        created_at
+      FROM clients
+      WHERE active IS TRUE
+      ORDER BY created_at ASC
+    `;
+
+    if (!clients || clients.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: "No active clients found",
+        totalClients: 0,
+        sentCount: 0,
+        failedCount: 0,
+        sent: [],
+        failed: [],
+      });
+    }
 
     const sent = [];
     const failed = [];
 
     for (const client of clients) {
-      const reportUrl = `https://lead-report-peek.lovable.app/r/${client.slug}`;
+      const clientName = client.name;
+      const clientEmail = client.email;
+      const clientSlug = client.report_slug;
 
-      console.log(`Sending report to: ${client.name} <${client.email}>`);
+      if (!clientEmail || !clientSlug) {
+        failed.push({
+          client: clientName || "Unknown client",
+          email: clientEmail || null,
+          report: null,
+          error: "Missing email or report_slug in database",
+        });
+        continue;
+      }
+
+      const reportUrl = `https://lead-report-peek.lovable.app/r/${clientSlug}`;
+
+      console.log(`Sending report to: ${clientName} <${clientEmail}>`);
 
       try {
         const response = await resend.emails.send({
           from: process.env.RESEND_FROM_EMAIL,
-          to: client.email,
-          subject: `Relatório Google Ads - ${client.name}`,
+          to: clientEmail,
+          subject: `Relatório Google Ads - ${clientName}`,
           html: `
             <h2>Relatório de Performance Google Ads</h2>
             <p>Olá!</p>
@@ -48,17 +80,17 @@ export default async function handler(req, res) {
         console.log("Resend response:", response);
 
         sent.push({
-          client: client.name,
-          email: client.email,
+          client: clientName,
+          email: clientEmail,
           report: reportUrl,
           response,
         });
       } catch (error) {
-        console.error(`Failed to send email for ${client.name}:`, error);
+        console.error(`Failed to send email for ${clientName}:`, error);
 
         failed.push({
-          client: client.name,
-          email: client.email,
+          client: clientName,
+          email: clientEmail,
           report: reportUrl,
           error: error?.message || "Unknown error",
         });
