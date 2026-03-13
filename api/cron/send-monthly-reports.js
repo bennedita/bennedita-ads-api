@@ -10,6 +10,7 @@ function sleep(ms) {
 
 export default async function handler(req, res) {
   console.log("Running monthly report job");
+  
 
   if (!process.env.RESEND_API_KEY) {
     return res.status(500).json({
@@ -94,8 +95,6 @@ if (!pdfResponse.ok) {
   const errorText = await pdfResponse.text();
   throw new Error("PDFShift error: " + errorText);
 }
-
-const pdfBuffer = Buffer.from(await pdfResponse.arrayBuffer());
 
 const pdfBuffer = Buffer.from(await pdfResponse.arrayBuffer());
       console.log(`Sending report to: ${clientName} <${clientEmail}>`);
