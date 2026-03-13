@@ -8,7 +8,7 @@
     "resend": "^3.0.0",
     "@upstash/redis": "^1.28.4",
     "@neondatabase/serverless": "^0.10.0",
-    "puppeteer-core": "^23.10.4",
+    "playwright-core": "^1.51.1",
     "@sparticuz/chromium": "^131.0.1"
   }
 }
