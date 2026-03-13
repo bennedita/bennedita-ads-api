@@ -87,10 +87,15 @@ const pdfResponse = await fetch("https://api.pdfshift.io/v3/convert/pdf", {
   },
   body: JSON.stringify({
     source: reportUrl,
-    landscape: false,
-    use_print: false,
   }),
 });
+
+if (!pdfResponse.ok) {
+  const errorText = await pdfResponse.text();
+  throw new Error("PDFShift error: " + errorText);
+}
+
+const pdfBuffer = Buffer.from(await pdfResponse.arrayBuffer());
 
 const pdfBuffer = Buffer.from(await pdfResponse.arrayBuffer());
       console.log(`Sending report to: ${clientName} <${clientEmail}>`);
