@@ -10,7 +10,9 @@ function sleep(ms) {
 
 export default async function handler(req, res) {
   console.log("Running monthly report job");
-  
+  console.log("PDFSHIFT loaded:", !!process.env.PDFSHIFT_API_KEY);
+  console.log("PDFSHIFT first chars:", process.env.PDFSHIFT_API_KEY?.slice(0, 6));
+  console.log("PDFSHIFT length:", process.env.PDFSHIFT_API_KEY?.length);
 
   if (!process.env.RESEND_API_KEY) {
     return res.status(500).json({
