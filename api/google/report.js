@@ -1,11 +1,11 @@
 import { GoogleAdsApi } from "google-ads-api";
-
+import { neon } from "@neondatabase/serverless";
 const client = new GoogleAdsApi({
   client_id: process.env.GOOGLE_ADS_CLIENT_ID,
   client_secret: process.env.GOOGLE_ADS_CLIENT_SECRET,
   developer_token: process.env.GOOGLE_ADS_DEVELOPER_TOKEN,
 });
-
+const sql = neon(process.env.POSTGRES_URL);
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
@@ -19,14 +19,30 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { customer_id, period } = req.query;
+    const { slug, period } = req.query;
 
-    if (!customer_id) {
-      return res.status(400).json({
-        success: false,
-        error: "Missing customer_id",
-      });
-    }
+if (!slug) {
+  return res.status(400).json({
+    success: false,
+    error: "Missing slug",
+  });
+}
+
+const clientRow = await sql`
+  SELECT google_customer_id
+  FROM clients
+  WHERE report_slug = ${slug}
+  LIMIT 1
+`;
+
+if (!clientRow.length) {
+  return res.status(404).json({
+    success: false,
+    error: "Client not found",
+  });
+}
+
+const customer_id = clientRow[0].google_customer_id;
 
     const cleanId = String(customer_id).replace(/\D/g, "");
 
