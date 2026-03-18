@@ -4,9 +4,37 @@ export default async function handler(req, res) {
   if (req.method === "GET") {
     try {
       const clients = await sql`
-        SELECT id, name, email, google_customer_id, report_slug, active, created_at
-        FROM clients
-        ORDER BY created_at DESC
+        SELECT
+          c.id,
+          c.name,
+          c.email,
+          c.google_customer_id,
+          c.report_slug,
+          c.active,
+          c.created_at,
+          COALESCE(
+            json_agg(
+              json_build_object(
+                'platform', a.platform,
+                'account_id', a.account_id,
+                'account_name', a.account_name
+              )
+            ) FILTER (WHERE a.id IS NOT NULL),
+            '[]'
+          ) AS ad_accounts
+        FROM clients c
+        LEFT JOIN ad_accounts a
+          ON a.client_id = c.id
+          AND a.active = true
+        GROUP BY
+          c.id,
+          c.name,
+          c.email,
+          c.google_customer_id,
+          c.report_slug,
+          c.active,
+          c.created_at
+        ORDER BY c.created_at DESC
       `;
 
       return res.status(200).json(clients);
