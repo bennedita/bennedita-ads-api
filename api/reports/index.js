@@ -1,6 +1,35 @@
 import { sql } from "../_lib/db.js";
 
 export default async function handler(req, res) {
+
+  // 🔹 GET → listar relatórios por cliente
+  if (req.method === "GET") {
+    try {
+      const { slug } = req.query;
+
+      if (!slug) {
+        return res.status(400).json({
+          error: "slug é obrigatório",
+        });
+      }
+
+      const reports = await sql`
+        SELECT *
+        FROM reports
+        WHERE client_slug = ${slug}
+        ORDER BY created_at DESC
+      `;
+
+      return res.status(200).json(reports);
+    } catch (error) {
+      return res.status(500).json({
+        error: "Erro ao buscar relatórios",
+        details: error.message,
+      });
+    }
+  }
+
+  // 🔹 POST → salvar relatório
   if (req.method === "POST") {
     try {
       const {
@@ -20,10 +49,8 @@ export default async function handler(req, res) {
         });
       }
 
-      // buscar client_id pelo slug
       const client = await sql`
-        SELECT id FROM clients WHERE report_slug = ${client_slug}
-        LIMIT 1
+        SELECT id FROM clients WHERE report_slug = ${client_slug} LIMIT 1
       `;
 
       if (!client.length) {
