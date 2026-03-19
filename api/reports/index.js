@@ -66,7 +66,7 @@ export default async function handler(req, res) {
       }
 
       const client_id = client[0].id;
-
+console.log("BODY RECEBIDO:", req.body);
       const report = await sql`
         INSERT INTO reports (
           client_id,
