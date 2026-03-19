@@ -1,8 +1,14 @@
 import { sql } from "../_lib/db.js";
 
 export default async function handler(req, res) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-  // 🔹 GET → listar relatórios por cliente
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
+
   if (req.method === "GET") {
     try {
       const { slug } = req.query;
@@ -29,7 +35,6 @@ export default async function handler(req, res) {
     }
   }
 
-  // 🔹 POST → salvar relatório
   if (req.method === "POST") {
     try {
       const {
@@ -41,6 +46,7 @@ export default async function handler(req, res) {
         summary,
         campaigns,
         chart_data,
+        pdf_url,
       } = req.body;
 
       if (!client_slug || !period) {
@@ -72,6 +78,7 @@ export default async function handler(req, res) {
           summary,
           campaigns,
           chart_data,
+          pdf_url,
           status
         )
         VALUES (
@@ -84,6 +91,7 @@ export default async function handler(req, res) {
           ${summary},
           ${campaigns},
           ${chart_data},
+          ${pdf_url},
           'gerado'
         )
         RETURNING *
