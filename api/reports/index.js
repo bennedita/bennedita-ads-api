@@ -84,14 +84,14 @@ export default async function handler(req, res) {
         VALUES (
           ${client_id},
           ${client_slug},
-          ${customer_id},
-          ${account_name},
+          ${customer_id || null},
+          ${account_name || null},
           ${period},
-          ${platforms},
-          ${summary},
-          ${campaigns},
-          ${chart_data},
-          ${pdf_url},
+          ${platforms || null},
+          ${summary ? JSON.stringify(summary) : null},
+          ${campaigns ? JSON.stringify(campaigns) : null},
+          ${chart_data ? JSON.stringify(chart_data) : null},
+          ${pdf_url || null},
           'gerado'
         )
         RETURNING *
