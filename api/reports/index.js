@@ -28,6 +28,8 @@ export default async function handler(req, res) {
 
       return res.status(200).json(reports);
     } catch (error) {
+      console.error("ERRO AO BUSCAR RELATÓRIOS:", error);
+
       return res.status(500).json({
         error: "Erro ao buscar relatórios",
         details: error.message,
@@ -66,7 +68,9 @@ export default async function handler(req, res) {
       }
 
       const client_id = client[0].id;
-console.log("BODY RECEBIDO:", req.body);
+
+      console.log("BODY RECEBIDO:", req.body);
+
       const report = await sql`
         INSERT INTO reports (
           client_id,
@@ -99,6 +103,8 @@ console.log("BODY RECEBIDO:", req.body);
 
       return res.status(201).json(report[0]);
     } catch (error) {
+      console.error("ERRO AO SALVAR RELATÓRIO:", error);
+
       return res.status(500).json({
         error: "Erro ao salvar relatório",
         details: error.message,
