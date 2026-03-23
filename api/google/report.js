@@ -19,8 +19,12 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { slug, period } = req.query;
-
+    const { slug, period, start_date, end_date } = req.query;
+    console.log("QUERY:", req.query);
+const dateFilter =
+  start_date && end_date
+    ? `segments.date BETWEEN '${start_date}' AND '${end_date}'`
+    : "segments.date DURING LAST_30_DAYS";
 if (!slug) {
   return res.status(400).json({
     success: false,
@@ -59,7 +63,7 @@ const customer_id = clientRow[0].google_customer_id;
         metrics.impressions,
         metrics.conversions
       FROM customer
-      WHERE segments.date DURING LAST_30_DAYS
+      WHERE ${dateFilter}
     `);
     const campaignRows = await customer.query(`
   SELECT
@@ -68,7 +72,7 @@ const customer_id = clientRow[0].google_customer_id;
     metrics.clicks,
     metrics.conversions
   FROM campaign
-  WHERE segments.date DURING LAST_30_DAYS
+  WHERE ${dateFilter}
 `);
         const dailyRows = await customer.query(`
       SELECT
@@ -76,7 +80,7 @@ const customer_id = clientRow[0].google_customer_id;
         metrics.cost_micros,
         metrics.conversions
       FROM customer
-      WHERE segments.date DURING LAST_30_DAYS
+      WHERE ${dateFilter}
       ORDER BY segments.date
     `);
         const keywordRows = await customer.query(`
@@ -89,7 +93,7 @@ const customer_id = clientRow[0].google_customer_id;
         metrics.cost_micros,
         metrics.conversions
       FROM keyword_view
-      WHERE segments.date DURING LAST_30_DAYS
+      WHERE ${dateFilter}
       ORDER BY metrics.clicks DESC
       LIMIT 10
     `);
