@@ -19,7 +19,7 @@ export default async function handler(req, res) {
     const { to, subject, html } = req.body;
 
     const response = await resend.emails.send({
-      from: "Bennedita <onboarding@resend.dev>",
+      from: "Relatórios Bennedita <relatorios@mail.bennedita.com.br>",
       to,
       subject,
       html,
