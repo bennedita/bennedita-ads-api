@@ -99,7 +99,7 @@ export default async function handler(req, res) {
           ${chart_data ? JSON.stringify(chart_data) : null},
           ${snapshot_json ? JSON.stringify(snapshot_json) : null},
           ${pdf_url || null},
-          'pending'
+          'done'
         )
         RETURNING *
       `;
