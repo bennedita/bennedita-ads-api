@@ -40,16 +40,17 @@ export default async function handler(req, res) {
   if (req.method === "POST") {
     try {
       const {
-        client_slug,
-        customer_id,
-        account_name,
-        period,
-        platforms,
-        summary,
-        campaigns,
-        chart_data,
-        pdf_url,
-      } = req.body;
+  client_slug,
+  customer_id,
+  account_name,
+  period,
+  platforms,
+  summary,
+  campaigns,
+  chart_data,
+  snapshot_json,
+  pdf_url,
+} = req.body;
 
       if (!client_slug || !period) {
         return res.status(400).json({
@@ -82,6 +83,7 @@ export default async function handler(req, res) {
           summary,
           campaigns,
           chart_data,
+          snapshot_json,
           pdf_url,
           status
         )
@@ -95,6 +97,7 @@ export default async function handler(req, res) {
           ${summary ? JSON.stringify(summary) : null},
           ${campaigns ? JSON.stringify(campaigns) : null},
           ${chart_data ? JSON.stringify(chart_data) : null},
+          ${snapshot_json ? JSON.stringify(snapshot_json) : null},
           ${pdf_url || null},
           'gerado'
         )
