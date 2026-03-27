@@ -92,8 +92,9 @@ const pdfResponse = await fetch("https://api.pdfshift.io/v3/convert/pdf", {
       "Basic " + Buffer.from("api:" + process.env.PDFSHIFT_API_KEY).toString("base64"),
   },
   body: JSON.stringify({
-  source: reportUrl
-}),
+  source: reportUrl,
+  delay: 4000
+})
 });
 
 if (!pdfResponse.ok) {
