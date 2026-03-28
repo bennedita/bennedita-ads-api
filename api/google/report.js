@@ -97,6 +97,25 @@ const customer_id = clientRow[0].google_customer_id;
       ORDER BY metrics.clicks DESC
       LIMIT 10
     `);
+    const deviceRows = await customer.query(`
+  SELECT
+    segments.device,
+    metrics.cost_micros,
+    metrics.clicks,
+    metrics.impressions,
+    metrics.conversions
+  FROM customer
+  WHERE ${dateFilter}
+`);
+    
+  campaigns,
+  chartData,
+  topKeywords,
+  deviceBreakdown,
+  insights: [],
+  source: "google_ads",
+  debugVersion: "device-breakdown-v1",
+});
     let spend = 0;
     let clicks = 0;
     let impressions = 0;
@@ -186,6 +205,37 @@ const topKeywords = Array.from(keywordMap.values())
   }))
   .sort((a, b) => b.conversions - a.conversions || b.clicks - a.clicks)
   .slice(0, 10);
+  const deviceMap = new Map();
+
+for (const row of deviceRows) {
+  const rawDevice = row.segments.device || "UNKNOWN";
+  const device = String(rawDevice).toUpperCase();
+
+  const cost = Number(row.metrics.cost_micros || 0) / 1_000_000;
+  const clicks = Number(row.metrics.clicks || 0);
+  const impressions = Number(row.metrics.impressions || 0);
+  const conversions = Number(row.metrics.conversions || 0);
+
+  if (!deviceMap.has(device)) {
+    deviceMap.set(device, {
+      device,
+      cost: 0,
+      clicks: 0,
+      impressions: 0,
+      conversions: 0,
+    });
+  }
+
+  const current = deviceMap.get(device);
+  current.cost += cost;
+  current.clicks += clicks;
+  current.impressions += impressions;
+  current.conversions += conversions;
+}
+
+const deviceBreakdown = Array.from(deviceMap.values())
+  .filter((item) => item.cost > 0 || item.clicks > 0 || item.impressions > 0 || item.conversions > 0)
+  .sort((a, b) => b.cost - a.cost);
     const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
     const cpa = conversions > 0 ? spend / conversions : 0;
 
@@ -203,6 +253,7 @@ const topKeywords = Array.from(keywordMap.values())
   campaigns,
   chartData,
   topKeywords,
+  deviceBreakdown,
   insights: [],
   source: "google_ads",
       debugVersion: "keywords-v1",
