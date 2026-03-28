@@ -99,6 +99,7 @@ const customer_id = clientRow[0].google_customer_id;
     `);
     const deviceRows = await customer.query(`
   SELECT
+    segments.date,
     segments.device,
     metrics.cost_micros,
     metrics.clicks,
