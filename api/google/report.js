@@ -104,7 +104,7 @@ const customer_id = clientRow[0].google_customer_id;
     metrics.clicks,
     metrics.impressions,
     metrics.conversions
-  FROM customer
+  FROM campaign
   WHERE ${dateFilter}
 `);
     
