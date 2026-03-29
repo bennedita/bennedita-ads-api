@@ -8,11 +8,154 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function getBaseUrl(req) {
+  if (process.env.PUBLIC_APP_URL) return process.env.PUBLIC_APP_URL.replace(/\/$/, "");
+  if (process.env.NEXT_PUBLIC_BASE_URL) return process.env.NEXT_PUBLIC_BASE_URL.replace(/\/$/, "");
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`.replace(/\/$/, "");
+  }
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`.replace(/\/$/, "");
+  }
+  const host = req.headers.host;
+  return `https://${host}`.replace(/\/$/, "");
+}
+
+function getLastMonthPeriod() {
+  const now = new Date();
+
+  const firstDayCurrentMonth = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)
+  );
+
+  const lastDayPreviousMonth = new Date(
+    firstDayCurrentMonth.getTime() - 24 * 60 * 60 * 1000
+  );
+
+  const firstDayPreviousMonth = new Date(
+    Date.UTC(
+      lastDayPreviousMonth.getUTCFullYear(),
+      lastDayPreviousMonth.getUTCMonth(),
+      1
+    )
+  );
+
+  const startDay = String(firstDayPreviousMonth.getUTCDate()).padStart(2, "0");
+  const endDay = String(lastDayPreviousMonth.getUTCDate()).padStart(2, "0");
+  const month = String(lastDayPreviousMonth.getUTCMonth() + 1).padStart(2, "0");
+  const year = String(lastDayPreviousMonth.getUTCFullYear());
+
+  return {
+    startDate: `${year}-${month}-${startDay}`,
+    endDate: `${year}-${month}-${endDay}`,
+    periodLabel: `${startDay}/${month}/${year} — ${endDay}/${month}/${year}`,
+  };
+}
+
+function parseRecipients(rawEmail) {
+  if (!rawEmail) return [];
+  return String(rawEmail)
+    .split(/[;,]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+async function findExistingReport(clientSlug, periodLabel) {
+  const rows = await sql`
+    SELECT id, snapshot_json, created_at
+    FROM reports
+    WHERE client_slug = ${clientSlug}
+      AND period = ${periodLabel}
+    ORDER BY created_at DESC
+    LIMIT 1
+  `;
+
+  return rows?.[0] ?? null;
+}
+
+async function generateAndSaveSnapshot({
+  req,
+  clientSlug,
+  clientName,
+  customerId,
+  periodLabel,
+  startDate,
+  endDate,
+  baseUrl,
+}) {
+  const googleReportUrl =
+    `${baseUrl}/api/google/report` +
+    `?slug=${encodeURIComponent(clientSlug)}` +
+    `&period=custom` +
+    `&start_date=${encodeURIComponent(startDate)}` +
+    `&end_date=${encodeURIComponent(endDate)}`;
+
+  console.log("Generating Google report:", {
+    clientSlug,
+    googleReportUrl,
+  });
+
+  const reportResponse = await fetch(googleReportUrl, {
+    method: "GET",
+    headers: {
+      "x-internal-api-key": process.env.INTERNAL_API_KEY || "",
+    },
+  });
+
+  if (!reportResponse.ok) {
+    const errorText = await reportResponse.text();
+    throw new Error(`Google report fetch failed (${reportResponse.status}): ${errorText}`);
+  }
+
+  const reportData = await reportResponse.json();
+
+  const payload = {
+    client_slug: clientSlug,
+    customer_id: customerId || clientSlug,
+    account_name: clientName || "Cliente",
+    period: periodLabel,
+    platforms: "google",
+    summary: reportData?.summary ?? null,
+    campaigns: reportData?.campaigns ?? [],
+    chart_data: reportData?.chartData ?? reportData?.chart_data ?? [],
+    topKeywords: reportData?.topKeywords ?? reportData?.top_keywords ?? [],
+    device_breakdown:
+      reportData?.deviceBreakdown ??
+      reportData?.device_breakdown ??
+      [],
+  };
+
+  console.log("Saving generated snapshot:", {
+    clientSlug,
+    periodLabel,
+    hasSummary: !!payload.summary,
+    campaigns: payload.campaigns.length,
+    chartData: payload.chart_data.length,
+    topKeywords: payload.topKeywords.length,
+  });
+
+  const saveResponse = await fetch(`${baseUrl}/api/reports`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-internal-api-key": process.env.INTERNAL_API_KEY || "",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!saveResponse.ok) {
+    const errorText = await saveResponse.text();
+    throw new Error(`Snapshot save failed (${saveResponse.status}): ${errorText}`);
+  }
+
+  const saveJson = await saveResponse.json();
+  console.log("Snapshot save response:", saveJson);
+
+  return saveJson;
+}
+
 export default async function handler(req, res) {
   console.log("Running monthly report job");
-  console.log("PDFSHIFT loaded:", !!process.env.PDFSHIFT_API_KEY);
-  console.log("PDFSHIFT first chars:", process.env.PDFSHIFT_API_KEY?.slice(0, 6));
-  console.log("PDFSHIFT length:", process.env.PDFSHIFT_API_KEY?.length);
 
   if (!process.env.RESEND_API_KEY) {
     return res.status(500).json({
@@ -34,6 +177,22 @@ export default async function handler(req, res) {
       error: "Missing POSTGRES_URL",
     });
   }
+
+  if (!process.env.PDFSHIFT_API_KEY) {
+    return res.status(500).json({
+      success: false,
+      error: "Missing PDFSHIFT_API_KEY",
+    });
+  }
+
+  const baseUrl = getBaseUrl(req);
+  const { startDate, endDate, periodLabel } = getLastMonthPeriod();
+
+  console.log("Base URL:", baseUrl);
+  console.log("Period:", { startDate, endDate, periodLabel });
+  console.log("PDFSHIFT loaded:", !!process.env.PDFSHIFT_API_KEY);
+  console.log("PDFSHIFT first chars:", process.env.PDFSHIFT_API_KEY?.slice(0, 6));
+  console.log("PDFSHIFT length:", process.env.PDFSHIFT_API_KEY?.length);
 
   try {
     const clients = await sql`
@@ -69,6 +228,14 @@ export default async function handler(req, res) {
       const clientName = client.name;
       const clientEmail = client.email;
       const clientSlug = client.report_slug;
+      const customerId = client.google_customer_id;
+
+      console.log("Processing client:", {
+        clientName,
+        clientEmail,
+        clientSlug,
+        customerId,
+      });
 
       if (!clientName || !clientEmail || !clientSlug) {
         failed.push({
@@ -80,70 +247,75 @@ export default async function handler(req, res) {
         continue;
       }
 
-      const baseAppUrl = "https://lead-report-peek.lovable.app";
+      const recipients = parseRecipients(clientEmail);
 
-// calcular mês anterior
-const now = new Date();
-const firstDayCurrentMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-const lastDayPreviousMonth = new Date(firstDayCurrentMonth.getTime() - 24 * 60 * 60 * 1000);
-const firstDayPreviousMonth = new Date(Date.UTC(lastDayPreviousMonth.getUTCFullYear(), lastDayPreviousMonth.getUTCMonth(), 1));
-
-const yyyy = lastDayPreviousMonth.getUTCFullYear();
-const mm = String(lastDayPreviousMonth.getUTCMonth() + 1).padStart(2, "0");
-const periodLabel = `${String(firstDayPreviousMonth.getUTCDate()).padStart(2, "0")}/${mm}/${yyyy} — ${String(lastDayPreviousMonth.getUTCDate()).padStart(2, "0")}/${mm}/${yyyy}`;
-      const existingReportRows = await sql`
-  SELECT id
-  FROM reports
-  WHERE client_slug = ${clientSlug}
-    AND period = ${periodLabel}
-  ORDER BY created_at DESC
-  LIMIT 1
-`;
-
-const existingReport = existingReportRows?.[0];
-
-if (!existingReport?.id) {
-  console.log("❌ No report found for:", clientSlug, periodLabel);
-
-  failed.push({
-    client: clientName,
-    email: clientEmail,
-    report: null,
-    error: `No snapshot for ${periodLabel}`,
-  });
-
-  continue;
-}
-
-const reportUrl = `${baseAppUrl}/report/${existingReport.id}`;
-      console.log("PDFSHIFT env loaded:", !!process.env.PDFSHIFT_API_KEY);
-console.log("PDFSHIFT key prefix:", process.env.PDFSHIFT_API_KEY?.slice(0, 8));
-console.log("PDFSHIFT key length:", process.env.PDFSHIFT_API_KEY?.length);
-const pdfResponse = await fetch("https://api.pdfshift.io/v3/convert/pdf", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    Authorization:
-      "Basic " + Buffer.from("api:" + process.env.PDFSHIFT_API_KEY).toString("base64"),
-  },
-  body: JSON.stringify({
-  source: reportUrl,
-  delay: 4000
-})
-});
-
-if (!pdfResponse.ok) {
-  const errorText = await pdfResponse.text();
-  throw new Error("PDFShift error: " + errorText);
-}
-
-const pdfBuffer = Buffer.from(await pdfResponse.arrayBuffer());
-      console.log(`Sending report to: ${clientName} <${clientEmail}>`);
+      if (recipients.length === 0) {
+        failed.push({
+          client: clientName,
+          email: clientEmail || null,
+          report: null,
+          error: "No valid recipient emails found",
+        });
+        continue;
+      }
 
       try {
+        let existingReport = await findExistingReport(clientSlug, periodLabel);
+
+        if (!existingReport?.id) {
+          console.log("No snapshot found, generating automatically:", {
+            clientSlug,
+            periodLabel,
+          });
+
+          await generateAndSaveSnapshot({
+            req,
+            clientSlug,
+            clientName,
+            customerId,
+            periodLabel,
+            startDate,
+            endDate,
+            baseUrl,
+          });
+
+          existingReport = await findExistingReport(clientSlug, periodLabel);
+        }
+
+        if (!existingReport?.id) {
+          throw new Error(`No snapshot found or created for ${periodLabel}`);
+        }
+
+        const reportUrl = `${baseUrl}/report/${existingReport.id}`;
+
+        console.log("Generating PDF from:", reportUrl);
+
+        const pdfResponse = await fetch("https://api.pdfshift.io/v3/convert/pdf", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization:
+              "Basic " +
+              Buffer.from("api:" + process.env.PDFSHIFT_API_KEY).toString("base64"),
+          },
+          body: JSON.stringify({
+            source: reportUrl,
+            delay: 4000,
+          }),
+        });
+
+        if (!pdfResponse.ok) {
+          const errorText = await pdfResponse.text();
+          throw new Error("PDFShift error: " + errorText);
+        }
+
+        const pdfBuffer = Buffer.from(await pdfResponse.arrayBuffer());
+
+        console.log(`Sending report to: ${clientName} <${recipients.join(", ")}>`);
+
         const response = await resend.emails.send({
           from: process.env.RESEND_FROM_EMAIL,
-          to: clientEmail,
+          to: recipients,
           subject: `Relatório Google Ads - ${clientName}`,
           html: `
             <h2>Relatório de Performance Google Ads</h2>
@@ -157,28 +329,28 @@ const pdfBuffer = Buffer.from(await pdfResponse.arrayBuffer());
             <p>Este relatório foi gerado automaticamente pela plataforma Bennedita.</p>
           `,
           attachments: [
-  {
-    filename: `relatorio-${clientSlug}.pdf`,
-    content: pdfBuffer
-  }
-],
+            {
+              filename: `relatorio-${clientSlug}.pdf`,
+              content: pdfBuffer,
+            },
+          ],
         });
 
         console.log("Resend response:", response);
 
         sent.push({
           client: clientName,
-          email: clientEmail,
+          email: recipients,
           report: reportUrl,
           response,
         });
       } catch (error) {
-        console.error(`Failed to send email for ${clientName}:`, error);
+        console.error(`Failed to process/send email for ${clientName}:`, error);
 
         failed.push({
           client: clientName,
           email: clientEmail,
-          report: reportUrl,
+          report: null,
           error: error?.message || "Unknown error",
         });
       }
@@ -195,6 +367,7 @@ const pdfBuffer = Buffer.from(await pdfResponse.arrayBuffer());
       totalClients: clients.length,
       sentCount: sent.length,
       failedCount: failed.length,
+      period: periodLabel,
       sent,
       failed,
     });
