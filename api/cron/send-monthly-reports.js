@@ -286,7 +286,7 @@ export default async function handler(req, res) {
           throw new Error(`No snapshot found or created for ${periodLabel}`);
         }
 
-        const reportUrl = `${baseUrl}/report/${existingReport.id}`;
+        const reportUrl = `${baseUrl}/report/${existingReport.id}?start_date=${startDate}&end_date=${endDate}`;
 
         console.log("Generating PDF from:", reportUrl);
 
