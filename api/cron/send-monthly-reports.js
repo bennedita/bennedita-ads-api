@@ -185,7 +185,7 @@ export default async function handler(req, res) {
     });
   }
 
-  const baseUrl = "https://16911aad-6d58-4ba2-811e-4a7b2cb9e707.lovableproject.com";
+  const baseUrl = process.env.PUBLIC_APP_URL;
   const { startDate, endDate, periodLabel } = getLastMonthPeriod();
 
   console.log("Base URL:", baseUrl);
