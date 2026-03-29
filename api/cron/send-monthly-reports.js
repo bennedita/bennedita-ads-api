@@ -80,7 +80,42 @@ export default async function handler(req, res) {
         continue;
       }
 
-      const reportUrl = `https://lead-report-peek.lovable.app/r/${clientSlug}`;
+      const baseAppUrl = "https://lead-report-peek.lovable.app";
+
+// calcular mês anterior
+const now = new Date();
+const firstDayCurrentMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+const lastDayPreviousMonth = new Date(firstDayCurrentMonth.getTime() - 24 * 60 * 60 * 1000);
+const firstDayPreviousMonth = new Date(Date.UTC(lastDayPreviousMonth.getUTCFullYear(), lastDayPreviousMonth.getUTCMonth(), 1));
+
+const yyyy = lastDayPreviousMonth.getUTCFullYear();
+const mm = String(lastDayPreviousMonth.getUTCMonth() + 1).padStart(2, "0");
+const periodLabel = `${String(firstDayPreviousMonth.getUTCDate()).padStart(2, "0")}/${mm}/${yyyy} — ${String(lastDayPreviousMonth.getUTCDate()).padStart(2, "0")}/${mm}/${yyyy}`;
+      const existingReportRows = await sql`
+  SELECT id
+  FROM reports
+  WHERE client_slug = ${clientSlug}
+    AND period = ${periodLabel}
+  ORDER BY created_at DESC
+  LIMIT 1
+`;
+
+const existingReport = existingReportRows?.[0];
+
+if (!existingReport?.id) {
+  console.log("❌ No report found for:", clientSlug, periodLabel);
+
+  failed.push({
+    client: clientName,
+    email: clientEmail,
+    report: null,
+    error: `No snapshot for ${periodLabel}`,
+  });
+
+  continue;
+}
+
+const reportUrl = `${baseAppUrl}/report/${existingReport.id}`;
       console.log("PDFSHIFT env loaded:", !!process.env.PDFSHIFT_API_KEY);
 console.log("PDFSHIFT key prefix:", process.env.PDFSHIFT_API_KEY?.slice(0, 8));
 console.log("PDFSHIFT key length:", process.env.PDFSHIFT_API_KEY?.length);
