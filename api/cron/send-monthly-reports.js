@@ -225,6 +225,7 @@ export default async function handler(req, res) {
     const failed = [];
 
     for (const client of clients) {
+      try {
       const clientName = client.name;
       const clientEmail = client.email;
       const clientSlug = client.report_slug;
@@ -271,7 +272,6 @@ if (alreadySent.length > 0) {
         continue;
       }
 
-      try {
         let existingReport = await findExistingReport(clientSlug, periodLabel);
 
         if (!existingReport?.id) {
@@ -361,15 +361,17 @@ await sql`
           response,
         });
       } catch (error) {
-        console.error(`Failed to process/send email for ${clientName}:`, error);
+  console.error(`❌ Error processing client:`, client.name, error);
 
-        failed.push({
-          client: clientName,
-          email: clientEmail,
-          report: null,
-          error: error?.message || "Unknown error",
-        });
-      }
+  failed.push({
+    client: client.name || "Unknown client",
+    email: client.email || null,
+    report: null,
+    error: error?.message || "Unknown error",
+  });
+
+  continue;
+}
 
       await sleep(1500);
     }
