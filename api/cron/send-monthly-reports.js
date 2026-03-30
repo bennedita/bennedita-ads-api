@@ -252,7 +252,13 @@ if (req.query.period) {
       const clientEmail = client.email;
       const clientSlug = client.report_slug;
       const customerId = client.google_customer_id;
-
+console.log("CRON DEBUG", {
+  clientName,
+  clientEmail,
+  clientSlug,
+  customerId,
+  periodLabel,
+});
       console.log("Processing client:", {
         clientName,
         clientEmail,
