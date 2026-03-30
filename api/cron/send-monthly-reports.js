@@ -3,7 +3,8 @@ import { neon } from "@neondatabase/serverless";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const sql = neon(process.env.POSTGRES_URL);
-
+const TEST_EMAIL = "viniciusfariabsb@gmail.com";
+const TEST_MODE = true;
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -249,6 +250,7 @@ export default async function handler(req, res) {
       }
 
       const recipients = parseRecipients(clientEmail);
+      const finalRecipients = TEST_MODE ? [TEST_EMAIL] : recipients;
 const alreadySent = await sql`
   SELECT id
   FROM reports
@@ -323,11 +325,11 @@ if (alreadySent.length > 0) {
 
         const pdfBuffer = Buffer.from(await pdfResponse.arrayBuffer());
 
-        console.log(`Sending report to: ${clientName} <${recipients.join(", ")}>`);
+        console.log(`Sending report to: ${clientName} <${finalRecipients.join(", ")}>`);
 
         const response = await resend.emails.send({
           from: process.env.RESEND_FROM_EMAIL,
-          to: recipients,
+          to: finalRecipients,
           subject: `Relatório Google Ads - ${clientName}`,
           html: `
             <h2>Relatório de Performance Google Ads</h2>
@@ -356,7 +358,7 @@ await sql`
 `;
         sent.push({
           client: clientName,
-          email: recipients,
+          email: finalRecipients,
           report: reportUrl,
           response,
         });
