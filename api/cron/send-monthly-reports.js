@@ -187,7 +187,25 @@ export default async function handler(req, res) {
   }
 
   const baseUrl = process.env.PUBLIC_APP_URL;
-  const { startDate, endDate, periodLabel } = getLastMonthPeriod();
+  let startDate, endDate, periodLabel;
+
+if (req.query.period) {
+  periodLabel = req.query.period;
+
+  // converter "01/01/2026 — 31/01/2026" → datas
+  const [start, end] = periodLabel.split(" — ");
+  
+  const [d1, m1, y1] = start.split("/");
+  const [d2, m2, y2] = end.split("/");
+
+  startDate = `${y1}-${m1}-${d1}`;
+  endDate = `${y2}-${m2}-${d2}`;
+} else {
+  const period = getLastMonthPeriod();
+  startDate = period.startDate;
+  endDate = period.endDate;
+  periodLabel = period.periodLabel;
+}
 
   console.log("Base URL:", baseUrl);
   console.log("Period:", { startDate, endDate, periodLabel });
