@@ -109,6 +109,9 @@ async function generateAndSaveSnapshot({
   }
 
   const reportData = await reportResponse.json();
+  if (!reportData || !reportData.summary) {
+  throw new Error("Empty report data from Google API");
+}
 
   const payload = {
     client_slug: clientSlug,
