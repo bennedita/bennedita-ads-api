@@ -109,7 +109,8 @@ async function generateAndSaveSnapshot({
   }
 
   const reportData = await reportResponse.json();
-  if (!reportData || !reportData.summary) {
+
+if (!reportData || !reportData.data) {
   throw new Error("Empty report data from Google API");
 }
 
@@ -119,7 +120,7 @@ async function generateAndSaveSnapshot({
     account_name: clientName || "Cliente",
     period: periodLabel,
     platforms: "google",
-    summary: reportData?.summary ?? null,
+    summary: reportData?.data ?? null,
     campaigns: reportData?.campaigns ?? [],
     chart_data: reportData?.chartData ?? reportData?.chart_data ?? [],
     topKeywords: reportData?.topKeywords ?? reportData?.top_keywords ?? [],
