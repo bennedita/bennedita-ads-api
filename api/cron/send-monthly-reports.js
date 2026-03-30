@@ -248,7 +248,19 @@ export default async function handler(req, res) {
       }
 
       const recipients = parseRecipients(clientEmail);
+const alreadySent = await sql`
+  SELECT id
+  FROM reports
+  WHERE client_slug = ${clientSlug}
+    AND period = ${periodLabel}
+    AND sent = true
+  LIMIT 1
+`;
 
+if (alreadySent.length > 0) {
+  console.log(`Skipping already sent report for ${clientName}`);
+  continue;
+}
       if (recipients.length === 0) {
         failed.push({
           client: clientName,
@@ -337,7 +349,11 @@ export default async function handler(req, res) {
         });
 
         console.log("Resend response:", response);
-
+await sql`
+  UPDATE reports
+  SET sent = true
+  WHERE id = ${existingReport.id}
+`;
         sent.push({
           client: clientName,
           email: recipients,
