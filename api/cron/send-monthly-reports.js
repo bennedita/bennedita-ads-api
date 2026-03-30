@@ -120,6 +120,7 @@ if (!reportData || !reportData.data) {
     account_name: clientName || "Cliente",
     period: periodLabel,
     platforms: "google",
+    snapshot_json: reportData,
     summary: reportData?.data ?? null,
     campaigns: reportData?.campaigns ?? [],
     chart_data: reportData?.chartData ?? reportData?.chart_data ?? [],
