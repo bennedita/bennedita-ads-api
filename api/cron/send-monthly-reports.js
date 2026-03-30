@@ -3,8 +3,8 @@ import { neon } from "@neondatabase/serverless";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const sql = neon(process.env.POSTGRES_URL);
-const TEST_EMAIL = "viniciusfariabsb@gmail.com";
-const TEST_MODE = true;
+const TEST_EMAIL = process.env.TEST_EMAIL || "viniciusfariabsb@gmail.com";
+const TEST_MODE = process.env.TEST_MODE === "true";
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
