@@ -3,7 +3,13 @@ import { neon } from "@neondatabase/serverless";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const sql = neon(process.env.POSTGRES_URL);
-
+function parseRecipients(rawEmail) {
+  if (!rawEmail) return [];
+  return String(rawEmail)
+    .split(/[;,]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
 function getBaseUrl(req) {
   if (process.env.PUBLIC_APP_URL) return process.env.PUBLIC_APP_URL.replace(/\/$/, "");
   if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
@@ -45,17 +51,19 @@ export default async function handler(req, res) {
       return res.status(404).json({ success: false, error: "Report not found" });
     }
 
-    if (!report.email) {
-      return res.status(400).json({ success: false, error: "Client has no email" });
-    }
+    const recipients = parseRecipients(report.email);
 
-    const baseUrl = getBaseUrl(req);
+if (recipients.length === 0) {
+  return res.status(400).json({ success: false, error: "Client has no valid email" });
+}
 
-    const reportUrl = `${baseUrl}/report/${report.id}`;
+const baseUrl = getBaseUrl(req);
 
-    const emailResponse = await resend.emails.send({
-      from: "Relatórios <onboarding@resend.dev>",
-      to: [report.email],
+const reportUrl = `${baseUrl}/report/${report.id}`;
+
+const emailResponse = await resend.emails.send({
+  from: "Relatórios <onboarding@resend.dev>",
+  to: recipients,
       subject: `Relatório Google Ads - ${report.account_name}`,
       html: `
         <p>Olá!</p>
