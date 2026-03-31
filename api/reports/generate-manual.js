@@ -33,12 +33,13 @@ async function findExistingReport(clientSlug, periodLabel) {
 }
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ success: false, error: "Method not allowed" });
-  }
+  if (req.method !== "POST" && req.method !== "GET") {
+  return res.status(405).json({ success: false, error: "Method not allowed" });
+}
 
   try {
-    const { clientId, startDate, endDate } = req.body || {};
+    const { clientId, startDate, endDate } =
+  req.method === "POST" ? (req.body || {}) : (req.query || {});
 
     if (!clientId || !startDate || !endDate) {
       return res.status(400).json({
