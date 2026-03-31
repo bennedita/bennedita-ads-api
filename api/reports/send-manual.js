@@ -16,12 +16,13 @@ function getBaseUrl(req) {
 }
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ success: false, error: "Method not allowed" });
-  }
+  if (req.method !== "POST" && req.method !== "GET") {
+  return res.status(405).json({ success: false, error: "Method not allowed" });
+}
 
   try {
-    const { reportId } = req.body || {};
+    const { reportId } =
+  req.method === "POST" ? (req.body || {}) : (req.query || {});
 
     if (!reportId) {
       return res.status(400).json({
