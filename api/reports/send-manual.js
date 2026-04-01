@@ -93,28 +93,61 @@ export default async function handler(req, res) {
       });
     }
 
+    const subject =
+      report.account_name
+        ? `Relatório Google Ads - ${report.account_name}`
+        : `Relatório Google Ads`;
+
     const email = await resend.emails.send({
       from: "Relatórios <relatorios@mail.bennedita.com.br>",
       to: recipients,
-      bcc: process.env.BCC_EMAIL,
-      subject: `Relatório Google Ads - ${report.account_name}`,
+      bcc: process.env.BCC_EMAIL ? [process.env.BCC_EMAIL] : [],
+      subject,
       html: `
-        <h2>Relatório de Performance Google Ads</h2>
-        <p>Olá!</p>
-        <p>Segue o relatório referente a <strong>${report.period}</strong>.</p>
+        <div style="font-family: Arial, sans-serif; color: #111827; line-height: 1.6;">
+          
+          <h2 style="margin-bottom: 16px;">
+            Relatório de Performance Google Ads
+          </h2>
 
-        <p>
-          <a href="${reportUrl}">Acessar relatório</a>
-        </p>
+          <p>Olá!</p>
 
-        <p>O PDF segue anexado.</p>
+          <p>
+            Segue o relatório referente a 
+            <strong>${report.period}</strong>.
+          </p>
 
-        <br/>
-        <p>
-          Atenciosamente,<br/>
-          Vinicius Faria<br/>
-          Bennedita Marketing Digital
-        </p>
+          <p style="margin: 24px 0;">
+            <a
+              href="${reportUrl}"
+              target="_blank"
+              style="
+                display: inline-block;
+                background: #2563eb;
+                color: #ffffff;
+                text-decoration: none;
+                padding: 12px 20px;
+                border-radius: 8px;
+                font-weight: 600;
+              "
+            >
+              Acessar relatório
+            </a>
+          </p>
+
+          <p>O PDF consolidado segue anexado neste e-mail.</p>
+
+          <p>Qualquer dúvida, fico à disposição.</p>
+
+          <br/>
+
+          <p>
+            Atenciosamente,<br/>
+            Vinicius Faria<br/>
+            Bennedita Marketing Digital
+          </p>
+
+        </div>
       `,
       attachments: [attachment],
     });
@@ -124,6 +157,8 @@ export default async function handler(req, res) {
       email,
     });
   } catch (err) {
+    console.error("SEND MANUAL ERROR:", err);
+
     return res.status(500).json({
       error: err.message,
     });
