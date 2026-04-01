@@ -9,8 +9,12 @@ function formatPeriodLabel(startDate, endDate) {
 }
 
 function getBaseUrl(req) {
-  if (process.env.PUBLIC_APP_URL) return process.env.PUBLIC_APP_URL.replace(/\/$/, "");
-  if (process.env.NEXT_PUBLIC_BASE_URL) return process.env.NEXT_PUBLIC_BASE_URL.replace(/\/$/, "");
+  if (process.env.PUBLIC_APP_URL) {
+    return process.env.PUBLIC_APP_URL.replace(/\/$/, "");
+  }
+  if (process.env.NEXT_PUBLIC_BASE_URL) {
+    return process.env.NEXT_PUBLIC_BASE_URL.replace(/\/$/, "");
+  }
   if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
     return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`.replace(/\/$/, "");
   }
@@ -33,25 +37,26 @@ async function findExistingReport(clientSlug, periodLabel) {
 }
 
 export default async function handler(req, res) {
-
-  // ✅ CORS (ADICIONAR)
+  // CORS
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
-  // ✅ permitir preflight
+  // Preflight
   if (req.method === "OPTIONS") {
     return res.status(200).end();
   }
 
-  // validação método (seu código original)
+  // Métodos permitidos
   if (req.method !== "POST" && req.method !== "GET") {
-  return res.status(405).json({ success: false, error: "Method not allowed" });
-}
+    return res
+      .status(405)
+      .json({ success: false, error: "Method not allowed" });
+  }
 
   try {
     const { clientId, startDate, endDate } =
-  req.method === "POST" ? (req.body || {}) : (req.query || {});
+      req.method === "POST" ? (req.body || {}) : (req.query || {});
 
     if (!clientId || !startDate || !endDate) {
       return res.status(400).json({
@@ -70,17 +75,26 @@ export default async function handler(req, res) {
     const client = clientRows?.[0];
 
     if (!client) {
-      return res.status(404).json({ success: false, error: "Client not found" });
+      return res.status(404).json({
+        success: false,
+        error: "Client not found",
+      });
     }
 
     if (!client.report_slug) {
-      return res.status(400).json({ success: false, error: "Client missing report_slug" });
+      return res.status(400).json({
+        success: false,
+        error: "Client missing report_slug",
+      });
     }
 
     const periodLabel = formatPeriodLabel(startDate, endDate);
     const baseUrl = getBaseUrl(req);
 
-    let existingReport = await findExistingReport(client.report_slug, periodLabel);
+    let existingReport = await findExistingReport(
+      client.report_slug,
+      periodLabel
+    );
 
     if (!existingReport?.id) {
       const googleReportUrl =
@@ -99,7 +113,9 @@ export default async function handler(req, res) {
 
       if (!reportResponse.ok) {
         const errorText = await reportResponse.text();
-        throw new Error(`Google report fetch failed (${reportResponse.status}): ${errorText}`);
+        throw new Error(
+          `Google report fetch failed (${reportResponse.status}): ${errorText}`
+        );
       }
 
       const reportData = await reportResponse.json();
@@ -136,10 +152,15 @@ export default async function handler(req, res) {
 
       if (!saveResponse.ok) {
         const errorText = await saveResponse.text();
-        throw new Error(`Snapshot save failed (${saveResponse.status}): ${errorText}`);
+        throw new Error(
+          `Snapshot save failed (${saveResponse.status}): ${errorText}`
+        );
       }
 
-      existingReport = await findExistingReport(client.report_slug, periodLabel);
+      existingReport = await findExistingReport(
+        client.report_slug,
+        periodLabel
+      );
     }
 
     if (!existingReport?.id) {
