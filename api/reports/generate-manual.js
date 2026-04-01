@@ -24,6 +24,12 @@ function getBaseUrl(req) {
   return `https://${req.headers.host}`.replace(/\/$/, "");
 }
 
+function looksLikeUuid(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    String(value || "")
+  );
+}
+
 async function findExistingReport(clientSlug, periodLabel) {
   const rows = await sql`
     SELECT id, period, created_at
@@ -36,43 +42,62 @@ async function findExistingReport(clientSlug, periodLabel) {
   return rows?.[0] ?? null;
 }
 
+async function findClientByIdOrSlug(clientRef) {
+  if (looksLikeUuid(clientRef)) {
+    const rows = await sql`
+      SELECT id, name, email, report_slug, google_customer_id, active
+      FROM clients
+      WHERE id = ${clientRef}
+      LIMIT 1
+    `;
+    return rows?.[0] ?? null;
+  }
+
+  const rows = await sql`
+    SELECT id, name, email, report_slug, google_customer_id, active
+    FROM clients
+    WHERE report_slug = ${clientRef}
+    LIMIT 1
+  `;
+  return rows?.[0] ?? null;
+}
+
 export default async function handler(req, res) {
-  // CORS
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
-  // Preflight
   if (req.method === "OPTIONS") {
     return res.status(200).end();
   }
 
-  // Métodos permitidos
   if (req.method !== "POST" && req.method !== "GET") {
-    return res
-      .status(405)
-      .json({ success: false, error: "Method not allowed" });
+    return res.status(405).json({
+      success: false,
+      error: "Method not allowed",
+    });
   }
 
   try {
-    const { clientId, startDate, endDate } =
-      req.method === "POST" ? (req.body || {}) : (req.query || {});
+    const input = req.method === "POST" ? req.body || {} : req.query || {};
 
-    if (!clientId || !startDate || !endDate) {
+    const clientRef =
+      input.clientId ||
+      input.client_id ||
+      input.slug ||
+      input.client_slug;
+
+    const startDate = input.startDate || input.start_date;
+    const endDate = input.endDate || input.end_date;
+
+    if (!clientRef || !startDate || !endDate) {
       return res.status(400).json({
         success: false,
-        error: "Missing clientId, startDate or endDate",
+        error: "Missing clientId/slug, startDate and endDate",
       });
     }
 
-    const clientRows = await sql`
-      SELECT id, name, email, report_slug, google_customer_id, active
-      FROM clients
-      WHERE id = ${clientId}
-      LIMIT 1
-    `;
-
-    const client = clientRows?.[0];
+    const client = await findClientByIdOrSlug(clientRef);
 
     if (!client) {
       return res.status(404).json({
@@ -175,15 +200,15 @@ export default async function handler(req, res) {
       clientName: client.name,
       period: periodLabel,
     });
- } catch (error) {
-  console.error("❌ generate-manual ERROR:");
-  console.error("message:", error.message);
-  console.error("stack:", error.stack);
-  console.error("full error:", error);
+  } catch (error) {
+    console.error("❌ generate-manual ERROR:");
+    console.error("message:", error?.message);
+    console.error("stack:", error?.stack);
+    console.error("full error:", error);
 
-  return res.status(500).json({
-    success: false,
-    error: error.message || "Internal error",
-  });
-}
+    return res.status(500).json({
+      success: false,
+      error: error?.message || "Internal error",
+    });
+  }
 }
