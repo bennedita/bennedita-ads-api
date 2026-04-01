@@ -175,11 +175,14 @@ export default async function handler(req, res) {
       clientName: client.name,
       period: periodLabel,
     });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      error: "Manual report generation failed",
-      details: error?.message || "Unknown error",
-    });
-  }
+ } catch (error) {
+  console.error("❌ generate-manual ERROR:");
+  console.error("message:", error.message);
+  console.error("stack:", error.stack);
+  console.error("full error:", error);
+
+  return res.status(500).json({
+    success: false,
+    error: error.message || "Internal error",
+  });
 }
