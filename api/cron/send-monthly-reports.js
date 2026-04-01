@@ -349,11 +349,11 @@ const pdfResponse = await fetch("https://api.pdfshift.io/v3/convert/pdf", {
       "Basic " +
       Buffer.from("api:" + process.env.PDFSHIFT_API_KEY).toString("base64"),
   },
-  body: JSON.stringify({
-    url: pdfUrl,
-    print_background: true,
-    delay: 8000
-  }),
+body: JSON.stringify({
+  source: pdfUrl,
+  use_print: true,
+  delay: 8000
+}),
 });
 
         if (!pdfResponse.ok) {
