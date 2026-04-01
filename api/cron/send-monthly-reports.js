@@ -192,7 +192,7 @@ export default async function handler(req, res) {
     });
   }
 
-  const baseUrl = process.env.PUBLIC_APP_URL;
+  const baseUrl = "https://lead-report-peek.lovable.app";
   let startDate, endDate, periodLabel;
 
 if (req.query.period) {
