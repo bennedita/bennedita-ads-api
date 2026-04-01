@@ -1,26 +1,9 @@
-export default async function handler(req, res) {
-  // CORS
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-
-  // 🔥 TEM QUE VIR ANTES DE QUALQUER VALIDAÇÃO
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
-
-  // 🔥 SÓ DEPOIS você valida método
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
-
-  // resto do código...
-}
 import { Resend } from "resend";
 import { neon } from "@neondatabase/serverless";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const sql = neon(process.env.POSTGRES_URL);
+
 function parseRecipients(rawEmail) {
   if (!rawEmail) return [];
   return String(rawEmail)
@@ -28,25 +11,28 @@ function parseRecipients(rawEmail) {
     .map((item) => item.trim())
     .filter(Boolean);
 }
-function getBaseUrl(req) {
-  if (process.env.PUBLIC_APP_URL) return process.env.PUBLIC_APP_URL.replace(/\/$/, "");
-  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
-    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
-  }
-  if (process.env.VERCEL_URL) {
-    return `https://${process.env.VERCEL_URL}`;
-  }
-  return `https://${req.headers.host}`;
-}
 
 export default async function handler(req, res) {
+  // CORS
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+  // Preflight
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
+
+  // Métodos permitidos
   if (req.method !== "POST" && req.method !== "GET") {
-  return res.status(405).json({ success: false, error: "Method not allowed" });
-}
+    return res
+      .status(405)
+      .json({ success: false, error: "Method not allowed" });
+  }
 
   try {
     const { reportId } =
-  req.method === "POST" ? (req.body || {}) : (req.query || {});
+      req.method === "POST" ? (req.body || {}) : (req.query || {});
 
     if (!reportId) {
       return res.status(400).json({
@@ -66,22 +52,27 @@ export default async function handler(req, res) {
     const report = rows?.[0];
 
     if (!report) {
-      return res.status(404).json({ success: false, error: "Report not found" });
+      return res.status(404).json({
+        success: false,
+        error: "Report not found",
+      });
     }
 
     const recipients = parseRecipients(report.email);
 
-if (recipients.length === 0) {
-  return res.status(400).json({ success: false, error: "Client has no valid email" });
-}
+    if (recipients.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Client has no valid email",
+      });
+    }
 
-const baseUrl = "https://lead-report-peek.lovable.app";
+    const baseUrl = "https://lead-report-peek.lovable.app";
+    const reportUrl = `${baseUrl}/report/${report.id}`;
 
-const reportUrl = `${baseUrl}/report/${report.id}`;
-
-const emailResponse = await resend.emails.send({
-  from: "Relatórios <relatorios@mail.bennedita.com.br>",
-  to: recipients,
+    const emailResponse = await resend.emails.send({
+      from: "Relatórios <relatorios@mail.bennedita.com.br>",
+      to: recipients,
       subject: `Relatório Google Ads - ${report.account_name}`,
       html: `
         <p>Olá!</p>
