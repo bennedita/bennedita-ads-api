@@ -80,7 +80,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "No email" });
     }
 
-    const reportUrl = `${getAppUrl()}/report/${report.id}`;
+    const reportUrl = `${getAppUrl()}/report/${report.id}?print=true`;
 
     let attachment;
     try {
