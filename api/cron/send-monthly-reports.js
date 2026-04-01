@@ -281,6 +281,8 @@ console.log("CRON DEBUG", {
 
       const recipients = parseRecipients(clientEmail);
       const finalRecipients = TEST_MODE ? [TEST_EMAIL] : recipients;
+const forceResend = req.query.force === "true";
+
 const alreadySent = await sql`
   SELECT id
   FROM reports
@@ -290,9 +292,13 @@ const alreadySent = await sql`
   LIMIT 1
 `;
 
-if (alreadySent.length > 0) {
+if (!forceResend && alreadySent.length > 0) {
   console.log(`Skipping already sent report for ${clientName}`);
   continue;
+}
+
+if (forceResend && alreadySent.length > 0) {
+  console.log(`Force resend enabled for ${clientName}`);
 }
       if (recipients.length === 0) {
         failed.push({
