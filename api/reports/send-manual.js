@@ -31,7 +31,6 @@ async function generatePdf(report) {
       source: reportUrl,
       use_print: true,
       delay: 10000,
-       wait_for: "networkidle0",
     }),
   });
 
