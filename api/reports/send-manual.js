@@ -62,7 +62,7 @@ const baseUrl = getBaseUrl(req);
 const reportUrl = `${baseUrl}/report/${report.id}`;
 
 const emailResponse = await resend.emails.send({
-  from: "Relatórios <onboarding@resend.dev>",
+  from: "Relatórios <relatorios@mail.bennedita.com.br>",
   to: recipients,
       subject: `Relatório Google Ads - ${report.account_name}`,
       html: `
