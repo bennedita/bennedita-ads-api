@@ -30,7 +30,8 @@ async function generatePdf(report) {
     body: JSON.stringify({
       source: reportUrl,
       use_print: true,
-      delay: 15000,
+      delay: 10000,
+       wait_for: "networkidle0",
     }),
   });
 
