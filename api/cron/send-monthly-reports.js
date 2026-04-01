@@ -5,6 +5,7 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 const sql = neon(process.env.POSTGRES_URL);
 const TEST_EMAIL = process.env.TEST_EMAIL || "viniciusfariabsb@gmail.com";
 const TEST_MODE = process.env.TEST_MODE === "true";
+const BCC_EMAIL = process.env.BCC_EMAIL || "viniciusfariabsb@gmail.com";
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -359,6 +360,7 @@ if (alreadySent.length > 0) {
         const response = await resend.emails.send({
           from: process.env.RESEND_FROM_EMAIL,
           to: finalRecipients,
+          bcc: [BCC_EMAIL],
           subject: `Relatório Google Ads - ${clientName}`,
           html: `
             <h2>Relatório de Performance Google Ads</h2>
