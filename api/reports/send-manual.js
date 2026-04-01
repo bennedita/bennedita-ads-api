@@ -101,7 +101,9 @@ export default async function handler(req, res) {
     const email = await resend.emails.send({
       from: "Relatórios <relatorios@mail.bennedita.com.br>",
       to: recipients,
-      bcc: process.env.BCC_EMAIL ? [process.env.BCC_EMAIL] : [],
+      bcc: process.env.BCC_EMAIL
+  ? process.env.BCC_EMAIL.split(",").map(e => e.trim())
+  : [],
       subject,
       html: `
         <div style="font-family: Arial, sans-serif; color: #111827; line-height: 1.6;">
