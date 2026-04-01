@@ -73,9 +73,10 @@ function buildEmailHtml({ clientName, accountName, period, reportUrl }) {
       </p>
 
       <p style="margin-top: 24px;">
-        Atenciosamente,<br />
-        Bennedita
-      </p>
+  Atenciosamente,<br />
+  Vinicius Faria<br />
+  Bennedita Marketing Digital
+</p>
 
       <hr style="margin: 32px 0; border: 0; border-top: 1px solid #e5e7eb;" />
 
