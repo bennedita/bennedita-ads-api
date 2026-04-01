@@ -16,86 +16,8 @@ function getAppUrl() {
   return "https://lead-report-peek.lovable.app";
 }
 
-function buildEmailHtml({ clientName, accountName, period, reportUrl }) {
-  const title = accountName || clientName || "Cliente";
-  const periodLine = period ? ` referente a <strong>${period}</strong>` : "";
-
-  return `
-    <div style="font-family: Arial, Helvetica, sans-serif; color: #111827; line-height: 1.6;">
-      <h2 style="margin: 0 0 16px;">Relatório de Performance Google Ads</h2>
-
-      <p>Olá!</p>
-
-      <p>
-        Segue o relatório consolidado de Google Ads${periodLine}.
-      </p>
-
-      <p>
-        Você pode acessar a versão online pelo link abaixo:
-      </p>
-
-      <p style="margin: 24px 0;">
-        <a
-          href="${reportUrl}"
-          style="
-            display: inline-block;
-            background: #2563eb;
-            color: #ffffff;
-            text-decoration: none;
-            padding: 12px 18px;
-            border-radius: 8px;
-            font-weight: 600;
-          "
-        >
-          Acessar relatório
-        </a>
-      </p>
-
-      <p>
-        O PDF consolidado segue anexado neste e-mail.
-      </p>
-
-      <p>
-        Qualquer dúvida, fico à disposição.
-      </p>
-
-      <p style="margin-top: 24px;">
-        Atenciosamente,<br />
-        Vinicius Faria<br />
-        Bennedita Marketing Digital
-      </p>
-
-      <hr style="margin: 32px 0; border: 0; border-top: 1px solid #e5e7eb;" />
-
-      <p style="font-size: 12px; color: #6b7280;">
-        Conta: ${title}${period ? `<br />Período: ${period}` : ""}
-      </p>
-    </div>
-  `;
-}
-
-function buildEmailText({ period, reportUrl }) {
-  return [
-    "Olá,",
-    "",
-    `Segue o relatório consolidado de Google Ads${period ? ` referente a ${period}` : ""}.`,
-    "",
-    `Acessar relatório: ${reportUrl}`,
-    "",
-    "O PDF consolidado segue anexado neste e-mail.",
-    "",
-    "Qualquer dúvida, fico à disposição.",
-    "",
-    "Atenciosamente,",
-    "Vinicius Faria",
-    "Bennedita Marketing Digital",
-  ].join("\n");
-}
-
-// ✅ NOVO: GERA PDF REAL (SEM DEPENDER DE API INTERNA)
 async function generatePdf(report) {
-  const appUrl = getAppUrl();
-  const reportUrl = `${appUrl}/report/${report.id}?print=true`;
+  const reportUrl = `${getAppUrl()}/report/${report.id}?print=true`;
 
   const response = await fetch("https://api.pdfshift.io/v3/convert/pdf", {
     method: "POST",
@@ -106,8 +28,8 @@ async function generatePdf(report) {
         Buffer.from("api:" + process.env.PDFSHIFT_API_KEY).toString("base64"),
     },
     body: JSON.stringify({
-      url: reportUrl,
-      print_background: true,
+      source: reportUrl,
+      use_print: true,
       delay: 8000,
     }),
   });
@@ -123,45 +45,19 @@ async function generatePdf(report) {
     throw new Error("PDF vazio");
   }
 
-  const safeName =
-    (report.account_name || report.name || "relatorio")
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "") || "relatorio";
-
   return {
-    filename: `${safeName}.pdf`,
+    filename: `relatorio-${report.id}.pdf`,
     content: buffer,
   };
 }
 
 export default async function handler(req, res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
-
-  if (req.method !== "POST" && req.method !== "GET") {
-    return res.status(405).json({
-      success: false,
-      error: "Method not allowed",
-    });
-  }
-
   try {
     const { reportId } =
-      req.method === "POST" ? (req.body || {}) : (req.query || {});
+      req.method === "POST" ? req.body : req.query;
 
     if (!reportId) {
-      return res.status(400).json({
-        success: false,
-        error: "Missing reportId",
-      });
+      return res.status(400).json({ error: "Missing reportId" });
     }
 
     const rows = await sql`
@@ -175,77 +71,61 @@ export default async function handler(req, res) {
     const report = rows?.[0];
 
     if (!report) {
-      return res.status(404).json({
-        success: false,
-        error: "Report not found",
-      });
+      return res.status(404).json({ error: "Report not found" });
     }
 
     const recipients = parseRecipients(report.email);
 
-    if (recipients.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: "Client has no valid email",
-      });
+    if (!recipients.length) {
+      return res.status(400).json({ error: "No email" });
     }
 
     const reportUrl = `${getAppUrl()}/report/${report.id}`;
 
-    const subjectBase = report.account_name || report.name || "Cliente";
-    const subject = report.period
-      ? `Relatório Google Ads — ${subjectBase} — ${report.period}`
-      : `Relatório Google Ads — ${subjectBase}`;
-
-    // 🚨 GERA PDF OU FALHA (NÃO ENVIA ERRADO)
     let attachment;
     try {
       attachment = await generatePdf(report);
-    } catch (error) {
-      console.error("❌ PDF FAILED:", error);
-
+    } catch (err) {
+      console.error("PDF ERROR:", err);
       return res.status(500).json({
-        success: false,
         error: "PDF generation failed",
-        details: error.message,
+        details: err.message,
       });
     }
 
-    const emailResponse = await resend.emails.send({
+    const email = await resend.emails.send({
       from: "Relatórios <relatorios@mail.bennedita.com.br>",
       to: recipients,
       bcc: process.env.BCC_EMAIL,
-      subject,
-      html: buildEmailHtml({
-        clientName: report.name,
-        accountName: report.account_name,
-        period: report.period,
-        reportUrl,
-      }),
-      text: buildEmailText({
-        period: report.period,
-        reportUrl,
-      }),
+      subject: `Relatório Google Ads - ${report.account_name}`,
+      html: `
+        <h2>Relatório de Performance Google Ads</h2>
+        <p>Olá!</p>
+        <p>Segue o relatório referente a <strong>${report.period}</strong>.</p>
+
+        <p>
+          <a href="${reportUrl}">Acessar relatório</a>
+        </p>
+
+        <p>O PDF segue anexado.</p>
+
+        <br/>
+        <p>
+          Atenciosamente,<br/>
+          Vinicius Faria<br/>
+          Bennedita Marketing Digital
+        </p>
+      `,
       attachments: [attachment],
     });
 
-    return res.status(200).json({
+    return res.json({
       success: true,
-      message: "Email sent successfully with PDF",
-      reportId: report.id,
-      email: report.email,
-      attachmentIncluded: true,
-      response: emailResponse,
+      email,
     });
-  } catch (error) {
-    console.error("❌ send-manual ERROR:");
-    console.error("message:", error?.message);
-    console.error("stack:", error?.stack);
-
+  } catch (err) {
     return res.status(500).json({
-      success: false,
-      error: "Manual email send failed",
-      details: error?.message || "Unknown error",
+      error: err.message,
     });
   }
 }
