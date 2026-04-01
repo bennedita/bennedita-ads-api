@@ -336,23 +336,25 @@ if (forceResend && alreadySent.length > 0) {
           throw new Error(`No snapshot found or created for ${periodLabel}`);
         }
 
-        const reportUrl = `${baseUrl}/report/${existingReport.id}?start_date=${startDate}&end_date=${endDate}`;
+        const reportUrl = `${baseUrl}/report/${existingReport.id}`;
+const pdfUrl = `${reportUrl}?print=true`;
 
-        console.log("Generating PDF from:", reportUrl);
+console.log("Generating PDF from:", pdfUrl);
 
-        const pdfResponse = await fetch("https://api.pdfshift.io/v3/convert/pdf", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization:
-              "Basic " +
-              Buffer.from("api:" + process.env.PDFSHIFT_API_KEY).toString("base64"),
-          },
-          body: JSON.stringify({
-            source: reportUrl,
-            delay: 4000,
-          }),
-        });
+const pdfResponse = await fetch("https://api.pdfshift.io/v3/convert/pdf", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    Authorization:
+      "Basic " +
+      Buffer.from("api:" + process.env.PDFSHIFT_API_KEY).toString("base64"),
+  },
+  body: JSON.stringify({
+    url: pdfUrl,
+    print_background: true,
+    wait_for: 3000
+  }),
+});
 
         if (!pdfResponse.ok) {
           const errorText = await pdfResponse.text();
@@ -370,14 +372,33 @@ if (forceResend && alreadySent.length > 0) {
           subject: `Relatório Google Ads - ${clientName}`,
           html: `
             <h2>Relatório de Performance Google Ads</h2>
-            <p>Olá!</p>
-            <p>Seu relatório de performance já está disponível:</p>
-            <p>
-              <a href="${reportUrl}" target="_blank" rel="noopener noreferrer">
-                Acessar relatório
-              </a>
-            </p>
-            <p>Este relatório foi gerado automaticamente pela plataforma Bennedita.</p>
+
+<p>Olá!</p>
+
+<p>
+  Segue o relatório consolidado de Google Ads referente a
+  <strong>${periodLabel}</strong>.
+</p>
+
+<p>Você pode acessar a versão online pelo link abaixo:</p>
+
+<p>
+  <a href="${reportUrl}" target="_blank">
+    Acessar relatório
+  </a>
+</p>
+
+<p>O PDF consolidado segue anexado neste e-mail.</p>
+
+<p>Qualquer dúvida, fico à disposição.</p>
+
+<br/>
+
+<p>
+  Atenciosamente,<br/>
+  Vinicius Faria<br/>
+  Bennedita Marketing Digital
+</p>
           `,
           attachments: [
             {
