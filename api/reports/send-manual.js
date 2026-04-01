@@ -17,7 +17,7 @@ function getAppUrl() {
 }
 
 async function generatePdf(report) {
-  const reportUrl = `${getAppUrl()}/report/${report.id}?print=true`;
+  const reportUrl = `${getAppUrl()}/report/${report.id}`;
 
   const response = await fetch("https://api.pdfshift.io/v3/convert/pdf", {
     method: "POST",
@@ -30,7 +30,7 @@ async function generatePdf(report) {
     body: JSON.stringify({
       source: reportUrl,
       use_print: true,
-      delay: 8000,
+      delay: 15000,
     }),
   });
 
