@@ -352,7 +352,7 @@ const pdfResponse = await fetch("https://api.pdfshift.io/v3/convert/pdf", {
   body: JSON.stringify({
     url: pdfUrl,
     print_background: true,
-    wait_for: 3000
+    delay: 8000
   }),
 });
 
