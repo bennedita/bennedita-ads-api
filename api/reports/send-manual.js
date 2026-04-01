@@ -16,19 +16,6 @@ function getAppUrl() {
   return "https://lead-report-peek.lovable.app";
 }
 
-function getApiBaseUrl(req) {
-  if (process.env.PUBLIC_API_URL) {
-    return process.env.PUBLIC_API_URL.replace(/\/$/, "");
-  }
-  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
-    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`.replace(/\/$/, "");
-  }
-  if (process.env.VERCEL_URL) {
-    return `https://${process.env.VERCEL_URL}`.replace(/\/$/, "");
-  }
-  return `https://${req.headers.host}`.replace(/\/$/, "");
-}
-
 function buildEmailHtml({ clientName, accountName, period, reportUrl }) {
   const title = accountName || clientName || "Cliente";
   const periodLine = period ? ` referente a <strong>${period}</strong>` : "";
@@ -73,10 +60,10 @@ function buildEmailHtml({ clientName, accountName, period, reportUrl }) {
       </p>
 
       <p style="margin-top: 24px;">
-  Atenciosamente,<br />
-  Vinicius Faria<br />
-  Bennedita Marketing Digital
-</p>
+        Atenciosamente,<br />
+        Vinicius Faria<br />
+        Bennedita Marketing Digital
+      </p>
 
       <hr style="margin: 32px 0; border: 0; border-top: 1px solid #e5e7eb;" />
 
@@ -100,56 +87,54 @@ function buildEmailText({ period, reportUrl }) {
     "Qualquer dúvida, fico à disposição.",
     "",
     "Atenciosamente,",
-    "Bennedita",
+    "Vinicius Faria",
+    "Bennedita Marketing Digital",
   ].join("\n");
 }
 
-async function getPdfAttachment({ report, req }) {
-  const apiBaseUrl = getApiBaseUrl(req);
+// ✅ NOVO: GERA PDF REAL (SEM DEPENDER DE API INTERNA)
+async function generatePdf(report) {
+  const appUrl = getAppUrl();
+  const reportUrl = `${appUrl}/report/${report.id}?print=true`;
 
-  const candidates = [
-    report.pdf_url,
-    `${apiBaseUrl}/api/reports/pdf?reportId=${encodeURIComponent(report.id)}`,
-    `${apiBaseUrl}/api/reports/pdf?id=${encodeURIComponent(report.id)}`,
-  ].filter(Boolean);
+  const response = await fetch("https://api.pdfshift.io/v3/convert/pdf", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization:
+        "Basic " +
+        Buffer.from("api:" + process.env.PDFSHIFT_API_KEY).toString("base64"),
+    },
+    body: JSON.stringify({
+      url: reportUrl,
+      print_background: true,
+      delay: 8000,
+    }),
+  });
 
-  for (const url of candidates) {
-    try {
-      const response = await fetch(url, {
-        method: "GET",
-        headers: {
-          "x-internal-api-key": process.env.INTERNAL_API_KEY || "",
-        },
-      });
-
-      if (!response.ok) continue;
-
-      const contentType = response.headers.get("content-type") || "";
-      if (!contentType.toLowerCase().includes("pdf")) continue;
-
-      const arrayBuffer = await response.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-
-      if (!buffer.length) continue;
-
-      const safeName =
-        (report.account_name || report.name || "relatorio")
-          .toLowerCase()
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .replace(/[^a-z0-9]+/g, "-")
-          .replace(/^-+|-+$/g, "") || "relatorio";
-
-      return {
-        filename: `${safeName}.pdf`,
-        content: buffer,
-      };
-    } catch (error) {
-      console.error("PDF attachment fetch failed:", url, error?.message || error);
-    }
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error("PDFShift error: " + errorText);
   }
 
-  return null;
+  const buffer = Buffer.from(await response.arrayBuffer());
+
+  if (!buffer.length) {
+    throw new Error("PDF vazio");
+  }
+
+  const safeName =
+    (report.account_name || report.name || "relatorio")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "relatorio";
+
+  return {
+    filename: `${safeName}.pdf`,
+    content: buffer,
+  };
 }
 
 export default async function handler(req, res) {
@@ -205,19 +190,31 @@ export default async function handler(req, res) {
       });
     }
 
-    const appUrl = getAppUrl();
-    const reportUrl = `${appUrl}/report/${report.id}`;
+    const reportUrl = `${getAppUrl()}/report/${report.id}`;
 
     const subjectBase = report.account_name || report.name || "Cliente";
     const subject = report.period
       ? `Relatório Google Ads — ${subjectBase} — ${report.period}`
       : `Relatório Google Ads — ${subjectBase}`;
 
-    const attachment = await getPdfAttachment({ report, req });
+    // 🚨 GERA PDF OU FALHA (NÃO ENVIA ERRADO)
+    let attachment;
+    try {
+      attachment = await generatePdf(report);
+    } catch (error) {
+      console.error("❌ PDF FAILED:", error);
 
-    const emailPayload = {
+      return res.status(500).json({
+        success: false,
+        error: "PDF generation failed",
+        details: error.message,
+      });
+    }
+
+    const emailResponse = await resend.emails.send({
       from: "Relatórios <relatorios@mail.bennedita.com.br>",
       to: recipients,
+      bcc: process.env.BCC_EMAIL,
       subject,
       html: buildEmailHtml({
         clientName: report.name,
@@ -229,29 +226,21 @@ export default async function handler(req, res) {
         period: report.period,
         reportUrl,
       }),
-    };
-
-    if (attachment) {
-      emailPayload.attachments = [attachment];
-    }
-
-    const emailResponse = await resend.emails.send(emailPayload);
+      attachments: [attachment],
+    });
 
     return res.status(200).json({
       success: true,
-      message: attachment
-        ? "Email sent successfully with PDF attachment"
-        : "Email sent successfully (without PDF attachment)",
+      message: "Email sent successfully with PDF",
       reportId: report.id,
       email: report.email,
-      attachmentIncluded: Boolean(attachment),
+      attachmentIncluded: true,
       response: emailResponse,
     });
   } catch (error) {
     console.error("❌ send-manual ERROR:");
     console.error("message:", error?.message);
     console.error("stack:", error?.stack);
-    console.error("full error:", error);
 
     return res.status(500).json({
       success: false,
