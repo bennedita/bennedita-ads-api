@@ -57,7 +57,7 @@ if (recipients.length === 0) {
   return res.status(400).json({ success: false, error: "Client has no valid email" });
 }
 
-const baseUrl = getBaseUrl(req);
+const baseUrl = "https://lead-report-peek.lovable.app";
 
 const reportUrl = `${baseUrl}/report/${report.id}`;
 
