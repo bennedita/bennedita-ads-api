@@ -13,12 +13,6 @@ function parseRecipients(rawEmail) {
 }
 
 function getAppUrl() {
-  if (process.env.PUBLIC_APP_URL) {
-    return process.env.PUBLIC_APP_URL.replace(/\/$/, "");
-  }
-  if (process.env.NEXT_PUBLIC_BASE_URL) {
-    return process.env.NEXT_PUBLIC_BASE_URL.replace(/\/$/, "");
-  }
   return "https://lead-report-peek.lovable.app";
 }
 
