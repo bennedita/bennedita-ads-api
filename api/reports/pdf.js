@@ -1,5 +1,5 @@
 import chromium from "@sparticuz/chromium";
-import { chromium as playwright } from "playwright-core";
+import puppeteer from "puppeteer-core";
 
 function setCorsHeaders(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -35,17 +35,14 @@ export default async function handler(req, res) {
 
     const baseUrl = "https://lead-report-peek.lovable.app";
 
-    // Suporta os dois fluxos:
-    // 1) PDF por reportId (mais compatível com o que já existe hoje)
-    // 2) PDF por slug do cliente
     const reportUrl = reportId
       ? `${baseUrl}/report/${reportId}?print=true`
       : `${baseUrl}/r/${slug}?print=true`;
 
-    browser = await playwright.launch({
+    browser = await puppeteer.launch({
       args: chromium.args,
       executablePath: await chromium.executablePath(),
-      headless: true,
+      headless: chromium.headless,
     });
 
     const page = await browser.newPage();
@@ -55,8 +52,7 @@ export default async function handler(req, res) {
       timeout: 60000,
     });
 
-    // Aguarda a tela estabilizar antes de gerar o PDF
-    await page.waitForTimeout(3000);
+    await new Promise((resolve) => setTimeout(resolve, 3000));
 
     const pdfBuffer = await page.pdf({
       format: "A4",
