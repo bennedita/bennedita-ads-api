@@ -1,6 +1,8 @@
 import chromium from "@sparticuz/chromium";
 import puppeteer from "puppeteer-core";
 
+chromium.setGraphicsMode = false;
+
 function setCorsHeaders(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
@@ -39,21 +41,13 @@ export default async function handler(req, res) {
       ? `${baseUrl}/report/${reportId}?print=true`
       : `${baseUrl}/r/${slug}?print=true`;
 
-    const executablePath = await chromium.executablePath();
+const executablePath = await chromium.executablePath();
 
-    console.log("Chromium path:", executablePath);
-
-    browser = await puppeteer.launch({
-      args: [
-        ...chromium.args,
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--single-process",
-      ],
-      executablePath: executablePath || "/usr/bin/chromium",
-      headless: chromium.headless,
-    });
+browser = await puppeteer.launch({
+  args: chromium.args,
+  executablePath,
+  headless: "new", // 👈 importante
+});
 
     const page = await browser.newPage();
 
