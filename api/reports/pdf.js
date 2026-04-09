@@ -39,24 +39,36 @@ export default async function handler(req, res) {
       ? `${baseUrl}/report/${reportId}?print=true`
       : `${baseUrl}/r/${slug}?print=true`;
 
+    const executablePath = await chromium.executablePath();
+
+    console.log("Chromium path:", executablePath);
+
     browser = await puppeteer.launch({
-      args: chromium.args,
-      executablePath: await chromium.executablePath(),
+      args: [
+        ...chromium.args,
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--single-process",
+      ],
+      executablePath: executablePath || "/usr/bin/chromium",
       headless: chromium.headless,
     });
 
     const page = await browser.newPage();
 
     await page.goto(reportUrl, {
-      waitUntil: "domcontentloaded",
+      waitUntil: "networkidle2",
       timeout: 60000,
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 3000));
+    // tempo pra renderizar gráfico e dados
+    await new Promise((resolve) => setTimeout(resolve, 4000));
 
     const pdfBuffer = await page.pdf({
       format: "A4",
       printBackground: true,
+      preferCSSPageSize: true,
       margin: {
         top: "16px",
         right: "16px",
@@ -80,14 +92,13 @@ export default async function handler(req, res) {
       success: false,
       error: "PDF generation failed",
       details: error?.message || "Unknown error",
-      stack: process.env.NODE_ENV !== "production" ? error?.stack : undefined,
     });
   } finally {
     if (browser) {
       try {
         await browser.close();
-      } catch (closeError) {
-        console.error("Error closing browser:", closeError);
+      } catch (e) {
+        console.error("Error closing browser:", e);
       }
     }
   }
