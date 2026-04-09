@@ -1,20 +1,48 @@
 import chromium from "@sparticuz/chromium";
 import { chromium as playwright } from "playwright-core";
 
-export default async function handler(req, res) {
-  try {
-    const { slug } = req.query;
+function setCorsHeaders(res) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+}
 
-    if (!slug) {
+export default async function handler(req, res) {
+  setCorsHeaders(res);
+
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
+
+  if (req.method !== "GET") {
+    return res.status(405).json({
+      success: false,
+      error: "Method not allowed",
+    });
+  }
+
+  let browser;
+
+  try {
+    const { slug, reportId } = req.query;
+
+    if (!slug && !reportId) {
       return res.status(400).json({
         success: false,
-        error: "Missing slug",
+        error: "Missing slug or reportId",
       });
     }
 
-    const reportUrl = `https://lead-report-peek.lovable.app/r/${slug}`;
+    const baseUrl = "https://lead-report-peek.lovable.app";
 
-    const browser = await playwright.launch({
+    // Suporta os dois fluxos:
+    // 1) PDF por reportId (mais compatível com o que já existe hoje)
+    // 2) PDF por slug do cliente
+    const reportUrl = reportId
+      ? `${baseUrl}/report/${reportId}?print=true`
+      : `${baseUrl}/r/${slug}?print=true`;
+
+    browser = await playwright.launch({
       args: chromium.args,
       executablePath: await chromium.executablePath(),
       headless: true,
@@ -23,9 +51,12 @@ export default async function handler(req, res) {
     const page = await browser.newPage();
 
     await page.goto(reportUrl, {
-      waitUntil: "networkidle",
+      waitUntil: "domcontentloaded",
       timeout: 60000,
     });
+
+    // Aguarda a tela estabilizar antes de gerar o PDF
+    await page.waitForTimeout(3000);
 
     const pdfBuffer = await page.pdf({
       format: "A4",
@@ -38,13 +69,12 @@ export default async function handler(req, res) {
       },
     });
 
-    await browser.close();
+    const fileName = reportId
+      ? `relatorio-${reportId}.pdf`
+      : `relatorio-${slug}.pdf`;
 
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader(
-      "Content-Disposition",
-      `inline; filename="relatorio-${slug}.pdf"`
-    );
+    res.setHeader("Content-Disposition", `inline; filename="${fileName}"`);
 
     return res.status(200).send(pdfBuffer);
   } catch (error) {
@@ -54,6 +84,15 @@ export default async function handler(req, res) {
       success: false,
       error: "PDF generation failed",
       details: error?.message || "Unknown error",
+      stack: process.env.NODE_ENV !== "production" ? error?.stack : undefined,
     });
+  } finally {
+    if (browser) {
+      try {
+        await browser.close();
+      } catch (closeError) {
+        console.error("Error closing browser:", closeError);
+      }
+    }
   }
 }
