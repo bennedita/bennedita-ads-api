@@ -1,6 +1,18 @@
 import { sql } from "../_lib/db.js";
 
+function setCorsHeaders(res) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+}
+
 export default async function handler(req, res) {
+  setCorsHeaders(res);
+
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
+
   if (req.method === "GET") {
     try {
       const clients = await sql`
@@ -48,7 +60,7 @@ export default async function handler(req, res) {
 
   if (req.method === "POST") {
     try {
-      const { name, email, google_customer_id } = req.body;
+      const { name, email, google_customer_id } = req.body || {};
 
       if (!name || !google_customer_id) {
         return res.status(400).json({
@@ -57,14 +69,17 @@ export default async function handler(req, res) {
       }
 
       const slug = name
+        .trim()
         .toLowerCase()
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "")
-        .replace(/\s+/g, "-");
+        .replace(/[^\w\s-]/g, "")
+        .replace(/\s+/g, "-")
+        .replace(/-+/g, "-");
 
       const newClient = await sql`
         INSERT INTO clients (name, email, google_customer_id, report_slug, active)
-        VALUES (${name}, ${email}, ${google_customer_id}, ${slug}, true)
+        VALUES (${name}, ${email || null}, ${google_customer_id}, ${slug}, true)
         RETURNING *
       `;
 
