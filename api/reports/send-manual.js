@@ -16,8 +16,18 @@ function getAppUrl() {
   return "https://lead-report-peek.lovable.app";
 }
 
+function formatFileName(report) {
+  const clientName = report.name
+    ?.toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, "-");
+
+  return `relatorio-${clientName}.pdf`;
+}
+
 async function generatePdf(report) {
-  const reportUrl = `${getAppUrl()}/report/${report.id}?print=true`;
+  const reportUrl = `${getAppUrl()}/report/${report.id}`;
 
   const response = await fetch("https://api.pdfshift.io/v3/convert/pdf", {
     method: "POST",
@@ -46,7 +56,7 @@ async function generatePdf(report) {
   }
 
   return {
-    filename: `relatorio-${report.id}.pdf`,
+    filename: formatFileName(report), // ✅ nome melhorado
     content: buffer,
   };
 }
@@ -80,7 +90,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "No email" });
     }
 
-    // ✅ CORREÇÃO AQUI (SEM print=true)
+    // ✅ CORREÇÃO IMPORTANTE (sem print=true no email)
     const reportUrl = `${getAppUrl()}/report/${report.id}`;
 
     let attachment;
@@ -103,7 +113,7 @@ export default async function handler(req, res) {
       from: "Relatórios <relatorios@mail.bennedita.com.br>",
       to: recipients,
       bcc: process.env.BCC_EMAIL
-        ? process.env.BCC_EMAIL.split(",").map((e) => e.trim())
+        ? process.env.BCC_EMAIL.split(",").map(e => e.trim())
         : [],
       subject,
       html: `
@@ -154,6 +164,12 @@ export default async function handler(req, res) {
       `,
       attachments: [attachment],
     });
+
+    // ✅ LOG DE ENVIO (novo)
+    await sql`
+      INSERT INTO report_logs (report_id, email, sent_at)
+      VALUES (${report.id}, ${report.email}, NOW())
+    `;
 
     return res.json({
       success: true,
