@@ -17,7 +17,7 @@ function getAppUrl() {
 }
 
 async function generatePdf(report) {
-  const reportUrl = `${getAppUrl()}/report/${report.id}`;
+  const reportUrl = `${getAppUrl()}/report/${report.id}?print=true`;
 
   const response = await fetch("https://api.pdfshift.io/v3/convert/pdf", {
     method: "POST",
@@ -80,7 +80,8 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "No email" });
     }
 
-    const reportUrl = `${getAppUrl()}/report/${report.id}?print=true`;
+    // ✅ CORREÇÃO AQUI (SEM print=true)
+    const reportUrl = `${getAppUrl()}/report/${report.id}`;
 
     let attachment;
     try {
@@ -102,8 +103,8 @@ export default async function handler(req, res) {
       from: "Relatórios <relatorios@mail.bennedita.com.br>",
       to: recipients,
       bcc: process.env.BCC_EMAIL
-  ? process.env.BCC_EMAIL.split(",").map(e => e.trim())
-  : [],
+        ? process.env.BCC_EMAIL.split(",").map((e) => e.trim())
+        : [],
       subject,
       html: `
         <div style="font-family: Arial, sans-serif; color: #111827; line-height: 1.6;">
