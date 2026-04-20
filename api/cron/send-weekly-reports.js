@@ -1,12 +1,6 @@
-import { Resend } from "resend";
 import { neon } from "@neondatabase/serverless";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 const sql = neon(process.env.POSTGRES_URL);
-
-function getAppUrl() {
-  return "https://lead-report-peek.lovable.app";
-}
 
 export default async function handler(req, res) {
   try {
@@ -25,24 +19,18 @@ export default async function handler(req, res) {
       start.setDate(today.getDate() - 7);
       const startDate = start.toISOString().split("T")[0];
 
-      // 3. Criar relatório no banco
+      // 3. Criar relatório no banco (CORRIGIDO)
       const reportResult = await sql`
         INSERT INTO reports (
-  client_id,
-  period,
-  snapshot_json,
-  created_at
-)
-VALUES (
-  ${client.id},
-  ${startDate + " até " + endDate},
-  ${JSON.stringify({ weekly: true })},
-  NOW()
-)
-RETURNING *
+          client_id,
+          period,
+          snapshot_json,
+          created_at
+        )
         VALUES (
           ${client.id},
           ${startDate + " até " + endDate},
+          ${JSON.stringify({ weekly: true })}::jsonb,
           NOW()
         )
         RETURNING *
@@ -50,7 +38,7 @@ RETURNING *
 
       const report = reportResult[0];
 
-      // 4. Chamar endpoint que envia email (o que você já tem)
+      // 4. Chamar envio de email
       await fetch(`${process.env.BASE_URL}/api/send-email`, {
         method: "POST",
         headers: {
