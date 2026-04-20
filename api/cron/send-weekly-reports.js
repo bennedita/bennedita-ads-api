@@ -4,126 +4,59 @@ import { neon } from "@neondatabase/serverless";
 const resend = new Resend(process.env.RESEND_API_KEY);
 const sql = neon(process.env.POSTGRES_URL);
 
-function parseRecipients(rawEmail) {
-  if (!rawEmail) return [];
-  return String(rawEmail)
-    .split(/[;,]/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
 function getAppUrl() {
   return "https://lead-report-peek.lovable.app";
 }
 
-async function generatePdf(report) {
-  const reportUrl = `${getAppUrl()}/report/${report.id}?print=true`;
-
-  const response = await fetch("https://api.pdfshift.io/v3/convert/pdf", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization:
-        "Basic " +
-        Buffer.from("api:" + process.env.PDFSHIFT_API_KEY).toString("base64"),
-    },
-    body: JSON.stringify({
-      source: reportUrl,
-      use_print: true,
-      delay: 8000,
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error("PDFShift error: " + errorText);
-  }
-
-  const buffer = Buffer.from(await response.arrayBuffer());
-
-  if (!buffer.length) {
-    throw new Error("PDF vazio");
-  }
-
-  return {
-    filename: `relatorio-${report.id}.pdf`,
-    content: buffer,
-  };
-}
-
 export default async function handler(req, res) {
   try {
-    const { reportId } =
-      req.method === "POST" ? req.body : req.query;
-
-    if (!reportId) {
-      return res.status(400).json({ error: "Missing reportId" });
-    }
-
-    const rows = await sql`
-      SELECT r.*, c.email, c.name
-      FROM reports r
-      JOIN clients c ON r.client_id = c.id
-      WHERE r.id = ${reportId}
-      LIMIT 1
+    // 1. Buscar clientes com semanal ativo
+    const clients = await sql`
+      SELECT * FROM clients
+      WHERE weekly_report_enabled = true
     `;
 
-    const report = rows?.[0];
+    for (const client of clients) {
+      // 2. Criar período (últimos 7 dias)
+      const today = new Date();
+      const endDate = today.toISOString().split("T")[0];
 
-    if (!report) {
-      return res.status(404).json({ error: "Report not found" });
-    }
+      const start = new Date();
+      start.setDate(today.getDate() - 7);
+      const startDate = start.toISOString().split("T")[0];
 
-    const recipients = parseRecipients(report.email);
+      // 3. Criar relatório no banco
+      const reportResult = await sql`
+        INSERT INTO reports (client_id, period, created_at)
+        VALUES (
+          ${client.id},
+          ${startDate + " até " + endDate},
+          NOW()
+        )
+        RETURNING *
+      `;
 
-    if (!recipients.length) {
-      return res.status(400).json({ error: "No email" });
-    }
+      const report = reportResult[0];
 
-    const reportUrl = `${getAppUrl()}/report/${report.id}`;
-
-    let attachment;
-    try {
-      attachment = await generatePdf(report);
-    } catch (err) {
-      console.error("PDF ERROR:", err);
-      return res.status(500).json({
-        error: "PDF generation failed",
-        details: err.message,
+      // 4. Chamar endpoint que envia email (o que você já tem)
+      await fetch(`${process.env.BASE_URL}/api/send-email`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          reportId: report.id,
+        }),
       });
     }
 
-    const email = await resend.emails.send({
-      from: "Relatórios <relatorios@mail.bennedita.com.br>",
-      to: recipients,
-      bcc: process.env.BCC_EMAIL,
-      subject: `Relatório Google Ads - ${report.account_name}`,
-      html: `
-        <h2>Relatório de Performance Google Ads</h2>
-        <p>Olá!</p>
-        <p>Segue o relatório referente a <strong>${report.period}</strong>.</p>
-
-        <p>
-          <a href="${reportUrl}">Acessar relatório</a>
-        </p>
-
-        <p>O PDF segue anexado.</p>
-
-        <br/>
-        <p>
-          Atenciosamente,<br/>
-          Vinicius Faria<br/>
-          Bennedita Marketing Digital
-        </p>
-      `,
-      attachments: [attachment],
-    });
-
     return res.json({
       success: true,
-      email,
+      processed: clients.length,
     });
   } catch (err) {
+    console.error(err);
+
     return res.status(500).json({
       error: err.message,
     });
