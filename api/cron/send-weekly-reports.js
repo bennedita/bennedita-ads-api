@@ -27,7 +27,19 @@ export default async function handler(req, res) {
 
       // 3. Criar relatório no banco
       const reportResult = await sql`
-        INSERT INTO reports (client_id, period, created_at)
+        INSERT INTO reports (
+  client_id,
+  period,
+  snapshot_json,
+  created_at
+)
+VALUES (
+  ${client.id},
+  ${startDate + " até " + endDate},
+  ${JSON.stringify({ weekly: true })},
+  NOW()
+)
+RETURNING *
         VALUES (
           ${client.id},
           ${startDate + " até " + endDate},
