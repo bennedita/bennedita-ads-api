@@ -19,18 +19,20 @@ export default async function handler(req, res) {
       start.setDate(today.getDate() - 7);
       const startDate = start.toISOString().split("T")[0];
 
-      // 3. Criar relatório no banco (CORRIGIDO)
+      // 3. Criar relatório no banco (AGORA COMPLETO)
       const reportResult = await sql`
         INSERT INTO reports (
           client_id,
           period,
           snapshot_json,
+          status,
           created_at
         )
         VALUES (
           ${client.id},
           ${startDate + " até " + endDate},
           ${JSON.stringify({ weekly: true })}::jsonb,
+          'generated',
           NOW()
         )
         RETURNING *
