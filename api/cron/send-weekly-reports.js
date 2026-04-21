@@ -10,6 +10,8 @@ export default async function handler(req, res) {
       WHERE weekly_report_enabled = true
     `;
 
+    let processed = 0;
+
     for (const client of clients) {
       // 2. Criar período (últimos 7 dias)
       const today = new Date();
@@ -19,7 +21,22 @@ export default async function handler(req, res) {
       start.setDate(today.getDate() - 7);
       const startDate = start.toISOString().split("T")[0];
 
-      // 3. Criar relatório no banco (AGORA COMPLETO)
+      const period = `${startDate} até ${endDate}`;
+
+      // 3. Evitar duplicação
+      const existing = await sql`
+        SELECT id FROM reports
+        WHERE client_id = ${client.id}
+        AND period = ${period}
+        LIMIT 1
+      `;
+
+      if (existing.length > 0) {
+        console.log("Relatório já existe:", client.name);
+        continue;
+      }
+
+      // 4. Criar relatório
       const reportResult = await sql`
         INSERT INTO reports (
           client_id,
@@ -30,7 +47,7 @@ export default async function handler(req, res) {
         )
         VALUES (
           ${client.id},
-          ${startDate + " até " + endDate},
+          ${period},
           ${JSON.stringify({ weekly: true })}::jsonb,
           'generated',
           NOW()
@@ -40,7 +57,7 @@ export default async function handler(req, res) {
 
       const report = reportResult[0];
 
-      // 4. Chamar envio de email
+      // 5. Enviar email
       await fetch(`${process.env.BASE_URL}/api/send-email`, {
         method: "POST",
         headers: {
@@ -50,11 +67,13 @@ export default async function handler(req, res) {
           reportId: report.id,
         }),
       });
+
+      processed++;
     }
 
     return res.json({
       success: true,
-      processed: clients.length,
+      processed,
     });
   } catch (err) {
     console.error(err);
