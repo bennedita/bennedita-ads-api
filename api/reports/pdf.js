@@ -1,6 +1,10 @@
 import chromium from "@sparticuz/chromium";
 import playwright from "playwright-core";
 
+export const config = {
+  runtime: "nodejs",
+};
+
 export default async function handler(req, res) {
   try {
     const { url } = req.query;
@@ -23,9 +27,10 @@ export default async function handler(req, res) {
       waitUntil: "networkidle",
     });
 
-    await page.waitForTimeout(3000);
+    // 👇 IMPORTANTE: força render completo do Lovable
+    await page.waitForTimeout(5000);
 
-    const pdf = await page.pdf({
+    const pdfBuffer = await page.pdf({
       format: "A4",
       printBackground: true,
     });
@@ -38,12 +43,13 @@ export default async function handler(req, res) {
       "attachment; filename=relatorio.pdf"
     );
 
-    return res.send(pdf);
+    return res.status(200).send(pdfBuffer);
   } catch (error) {
     console.error("PDF ERROR:", error);
 
     return res.status(500).json({
       error: error.message,
+      stack: error.stack,
     });
   }
 }
