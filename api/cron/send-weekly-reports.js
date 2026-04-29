@@ -27,18 +27,19 @@ export default async function handler(req, res) {
 
       const period = `${startDate} até ${endDate}`;
 
-      // 3. Evitar duplicação
-      const existing = await sql`
-        SELECT id FROM reports
-        WHERE client_id = ${client.id}
-        AND period = ${period}
-        LIMIT 1
-      `;
+      // 🚫 DUPLICIDADE DESATIVADA TEMPORARIAMENTE (para teste)
 
-      if (existing.length > 0) {
-        console.log("Relatório já existe:", client.name);
-        continue;
-      }
+      // const existing = await sql`
+      //   SELECT id FROM reports
+      //   WHERE client_id = ${client.id}
+      //   AND period = ${period}
+      //   LIMIT 1
+      // `;
+
+      // if (existing.length > 0) {
+      //   console.log("Relatório já existe:", client.name);
+      //   continue;
+      // }
 
       // 4. Criar relatório
       const reportResult = await sql`
@@ -61,7 +62,7 @@ export default async function handler(req, res) {
 
       const report = reportResult[0];
 
-      // 5. Enviar email (CORRIGIDO)
+      // 5. Enviar email
       await fetch(`${process.env.BASE_URL}/api/send-email`, {
         method: "POST",
         headers: {
