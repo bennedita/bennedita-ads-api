@@ -42,7 +42,7 @@ export default async function handler(req, res) {
     console.log("CUSTOMER ID:", dbClient.google_customer_id);
 
     const customer = client.Customer({
-      customer_id: dbClient.google_customer_id,
+      customer_id: dbClient.google_customer_id.replace(/-/g, ""),
       refresh_token: process.env.GOOGLE_ADS_REFRESH_TOKEN,
       login_customer_id: process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID,
     });
