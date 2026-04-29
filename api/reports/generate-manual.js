@@ -1,79 +1,139 @@
 import { neon } from "@neondatabase/serverless";
+import { GoogleAdsApi } from "google-ads-api";
 
 const sql = neon(process.env.POSTGRES_URL);
 
-function getBaseUrl() {
-  return process.env.BASE_URL;
-}
+const client = new GoogleAdsApi({
+  client_id: process.env.GOOGLE_ADS_CLIENT_ID,
+  client_secret: process.env.GOOGLE_ADS_CLIENT_SECRET,
+  developer_token: process.env.GOOGLE_ADS_DEVELOPER_TOKEN,
+});
 
 export default async function handler(req, res) {
   try {
+    const { slug, startDate, endDate } = req.query;
+
+    if (!slug || !startDate || !endDate) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing slug, startDate or endDate",
+      });
+    }
+
+    // 🔎 buscar cliente
     const clients = await sql`
-      SELECT * FROM clients
-      WHERE weekly_report_enabled = true
+      SELECT * FROM clients WHERE report_slug = ${slug} LIMIT 1
     `;
 
-    let processed = 0;
-
-    for (const client of clients) {
-      // período (últimos 7 dias)
-      const today = new Date();
-      const endDate = today.toISOString().split("T")[0];
-
-      const start = new Date();
-      start.setDate(today.getDate() - 7);
-      const startDate = start.toISOString().split("T")[0];
-
-      // 1. GERAR RELATÓRIO REAL (Google Ads)
-      const generateRes = await fetch(
-        `${getBaseUrl()}/api/reports/generate-manual?slug=${client.report_slug}&startDate=${startDate}&endDate=${endDate}`
-      );
-
-      const generateData = await generateRes.json();
-
-      if (!generateData.success) {
-        console.error("Erro ao gerar relatório:", generateData);
-        continue;
-      }
-
-      const reportId = generateData.reportId;
-
-      // 2. ENVIAR EMAIL COM PDF
-      await fetch(`${process.env.BASE_URL}/api/send-email`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          to: client.email,
-          subject: `Relatório Google Ads - ${client.name}`,
-          html: `
-            <h2>Relatório de Performance</h2>
-            <p>Olá!</p>
-            <p>Segue o relatório da última semana.</p>
-            <p>
-              <a href="https://lead-report-peek.lovable.app/report/${client.report_slug}">
-                Acessar relatório
-              </a>
-            </p>
-            <br/>
-            <p>Bennedita Marketing Digital</p>
-          `,
-          reportUrl: `https://lead-report-peek.lovable.app/report/${client.report_slug}`
-        }),
+    if (clients.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Client not found",
       });
-
-      processed++;
     }
+
+    const dbClient = clients[0];
+
+    const customer = client.Customer({
+      customer_id: dbClient.google_customer_id,
+      refresh_token: process.env.GOOGLE_ADS_REFRESH_TOKEN,
+      login_customer_id: process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID,
+    });
+
+    // 📊 QUERY PRINCIPAL
+    const rows = await customer.query(`
+      SELECT
+        campaign.name,
+        metrics.impressions,
+        metrics.clicks,
+        metrics.cost_micros,
+        metrics.conversions
+      FROM campaign
+      WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
+    `);
+
+    let impressions = 0;
+    let clicks = 0;
+    let cost = 0;
+    let conversions = 0;
+
+    const campaigns = rows.map((row) => {
+      const imp = Number(row.metrics.impressions || 0);
+      const clk = Number(row.metrics.clicks || 0);
+      const cst = Number(row.metrics.cost_micros || 0) / 1_000_000;
+      const conv = Number(row.metrics.conversions || 0);
+
+      impressions += imp;
+      clicks += clk;
+      cost += cst;
+      conversions += conv;
+
+      return {
+        name: row.campaign.name,
+        impressions: imp,
+        clicks: clk,
+        cost: cst,
+        conversions: conv,
+      };
+    });
+
+    const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
+    const cpc = clicks > 0 ? cost / clicks : 0;
+    const conversion_rate = clicks > 0 ? (conversions / clicks) * 100 : 0;
+
+    // 📈 CHART
+    const chartData = rows.map((row) => ({
+      name: row.campaign.name,
+      impressions: Number(row.metrics.impressions || 0),
+      clicks: Number(row.metrics.clicks || 0),
+    }));
+
+    // ✅ FORMATO CORRETO (ESSA É A CORREÇÃO REAL)
+    const snapshot = {
+      summary: {
+        impressions,
+        clicks,
+        cost,
+        conversions,
+        ctr,
+        cpc,
+        conversion_rate,
+      },
+      campaigns,
+      chartData,
+      insights: [],
+      source: "google_ads",
+    };
+
+    const period = `${startDate} até ${endDate}`;
+
+    const result = await sql`
+      INSERT INTO reports (
+        client_id,
+        period,
+        snapshot_json,
+        status,
+        created_at
+      )
+      VALUES (
+        ${dbClient.id},
+        ${period},
+        ${JSON.stringify(snapshot)}::jsonb,
+        'generated',
+        NOW()
+      )
+      RETURNING *
+    `;
 
     return res.json({
       success: true,
-      processed,
+      reportId: result[0].id,
     });
   } catch (err) {
-    console.error("CRON ERROR:", err);
+    console.error("GENERATE ERROR:", err);
 
     return res.status(500).json({
+      success: false,
       error: err.message,
     });
   }
