@@ -1,30 +1,28 @@
 import { Resend } from "resend";
-import chromium from "@sparticuz/chromium";
-import { chromium as playwright } from "playwright-core";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-async function generatePdf(url) {
-  const browser = await playwright.launch({
-    args: chromium.args,
-    executablePath: await chromium.executablePath(),
-    headless: true,
+async function generatePdf(reportUrl) {
+  const response = await fetch("https://api.pdfshift.io/v3/convert/pdf", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization:
+        "Basic " + Buffer.from("api:" + process.env.PDFSHIFT_API_KEY).toString("base64"),
+    },
+    body: JSON.stringify({
+      source: reportUrl,
+      format: "A4",
+      print_background: true,
+    }),
   });
 
-  const page = await browser.newPage();
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error("PDFShift error: " + errorText);
+  }
 
-  await page.goto(url, {
-    waitUntil: "networkidle",
-  });
-
-  await page.waitForTimeout(5000);
-
-  const pdfBuffer = await page.pdf({
-    format: "A4",
-    printBackground: true,
-  });
-
-  await browser.close();
+  const pdfBuffer = Buffer.from(await response.arrayBuffer());
 
   return pdfBuffer;
 }
@@ -49,7 +47,7 @@ export default async function handler(req, res) {
 
     if (reportUrl) {
       try {
-        const pdfBuffer = await generatePdf(reportUrl + "?print=true");
+        const pdfBuffer = await generatePdf(reportUrl);
 
         attachments.push({
           filename: "relatorio.pdf",
