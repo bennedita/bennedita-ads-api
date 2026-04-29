@@ -13,8 +13,6 @@ export default async function handler(req, res) {
   try {
     const { slug, startDate, endDate } = req.query;
 
-    console.log("🚀 START", { slug, startDate, endDate });
-
     if (!slug || !startDate || !endDate) {
       return res.status(400).json({
         success: false,
@@ -22,7 +20,6 @@ export default async function handler(req, res) {
       });
     }
 
-    // 🔎 buscar cliente
     const clients = await sql`
       SELECT * FROM clients WHERE report_slug = ${slug} LIMIT 1
     `;
@@ -35,13 +32,25 @@ export default async function handler(req, res) {
     }
 
     const dbClient = clients[0];
-
-    console.log("👤 CLIENT:", dbClient.name);
-    console.log("🧾 CUSTOMER ID ORIGINAL:", dbClient.google_customer_id);
-
     const customerIdClean = dbClient.google_customer_id.replace(/-/g, "");
 
-    console.log("🧾 CUSTOMER ID LIMPO:", customerIdClean);
+    const period = `${startDate} até ${endDate}`;
+
+    // ✅ 1. VERIFICAR SE JÁ EXISTE
+    const existing = await sql`
+      SELECT * FROM reports
+      WHERE client_id = ${dbClient.id}
+      AND period = ${period}
+      LIMIT 1
+    `;
+
+    if (existing.length > 0) {
+      return res.json({
+        success: true,
+        reportId: existing[0].id,
+        reused: true,
+      });
+    }
 
     const customer = client.Customer({
       customer_id: customerIdClean,
@@ -49,7 +58,7 @@ export default async function handler(req, res) {
       login_customer_id: process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID,
     });
 
-    // 📊 QUERY GOOGLE ADS
+    // 🔥 GOOGLE ADS
     let rows = [];
 
     try {
@@ -63,11 +72,7 @@ export default async function handler(req, res) {
         FROM campaign
         WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
       `);
-
-      console.log("✅ GOOGLE ADS OK:", rows.length);
     } catch (error) {
-      console.error("🔥 GOOGLE ADS ERROR:", error);
-
       return res.status(500).json({
         success: false,
         step: "google_ads",
@@ -75,7 +80,6 @@ export default async function handler(req, res) {
       });
     }
 
-    // 📊 PROCESSAMENTO
     let impressions = 0;
     let clicks = 0;
     let cost = 0;
@@ -127,9 +131,6 @@ export default async function handler(req, res) {
       source: "google_ads",
     };
 
-    const period = `${startDate} até ${endDate}`;
-
-    // 💾 SALVAR NO BANCO
     const result = await sql`
       INSERT INTO reports (
         client_id,
@@ -148,16 +149,13 @@ export default async function handler(req, res) {
       RETURNING *
     `;
 
-    console.log("✅ REPORT SALVO:", result[0].id);
-
     return res.json({
       success: true,
       reportId: result[0].id,
+      reused: false,
     });
 
   } catch (err) {
-    console.error("🔥 ERRO GERAL:", err);
-
     return res.status(500).json({
       success: false,
       error: err.message,
