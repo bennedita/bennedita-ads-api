@@ -27,42 +27,41 @@ export default async function handler(req, res) {
 
       const period = `${startDate} até ${endDate}`;
 
-      // 🚫 DUPLICIDADE DESATIVADA TEMPORARIAMENTE (para teste)
+      // 3. Buscar OU criar relatório (sem quebrar)
+      let report;
 
-      // const existing = await sql`
-      //   SELECT id FROM reports
-      //   WHERE client_id = ${client.id}
-      //   AND period = ${period}
-      //   LIMIT 1
-      // `;
-
-      // if (existing.length > 0) {
-      //   console.log("Relatório já existe:", client.name);
-      //   continue;
-      // }
-
-      // 4. Criar relatório
-      const reportResult = await sql`
-        INSERT INTO reports (
-          client_id,
-          period,
-          snapshot_json,
-          status,
-          created_at
-        )
-        VALUES (
-          ${client.id},
-          ${period},
-          ${JSON.stringify({ weekly: true })}::jsonb,
-          'generated',
-          NOW()
-        )
-        RETURNING *
+      const existing = await sql`
+        SELECT * FROM reports
+        WHERE client_id = ${client.id}
+        AND period = ${period}
+        LIMIT 1
       `;
 
-      const report = reportResult[0];
+      if (existing.length > 0) {
+        report = existing[0];
+      } else {
+        const reportResult = await sql`
+          INSERT INTO reports (
+            client_id,
+            period,
+            snapshot_json,
+            status,
+            created_at
+          )
+          VALUES (
+            ${client.id},
+            ${period},
+            ${JSON.stringify({ weekly: true })}::jsonb,
+            'generated',
+            NOW()
+          )
+          RETURNING *
+        `;
 
-      // 5. Enviar email
+        report = reportResult[0];
+      }
+
+      // 4. Enviar email
       await fetch(`${process.env.BASE_URL}/api/send-email`, {
         method: "POST",
         headers: {
@@ -95,7 +94,7 @@ export default async function handler(req, res) {
       processed,
     });
   } catch (err) {
-    console.error(err);
+    console.error("CRON ERROR:", err);
 
     return res.status(500).json({
       error: err.message,
