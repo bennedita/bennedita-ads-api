@@ -13,6 +13,8 @@ export default async function handler(req, res) {
   try {
     const { slug, startDate, endDate } = req.query;
 
+    console.log("START", { slug, startDate, endDate });
+
     if (!slug || !startDate || !endDate) {
       return res.status(400).json({
         success: false,
@@ -25,6 +27,8 @@ export default async function handler(req, res) {
       SELECT * FROM clients WHERE report_slug = ${slug} LIMIT 1
     `;
 
+    console.log("CLIENT QUERY RESULT:", clients);
+
     if (clients.length === 0) {
       return res.status(404).json({
         success: false,
@@ -34,13 +38,16 @@ export default async function handler(req, res) {
 
     const dbClient = clients[0];
 
+    console.log("USING CLIENT:", dbClient.name);
+    console.log("CUSTOMER ID:", dbClient.google_customer_id);
+
     const customer = client.Customer({
       customer_id: dbClient.google_customer_id,
       refresh_token: process.env.GOOGLE_ADS_REFRESH_TOKEN,
       login_customer_id: process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID,
     });
 
-    // 📊 QUERY PRINCIPAL
+    // 📊 QUERY
     const rows = await customer.query(`
       SELECT
         campaign.name,
@@ -51,6 +58,8 @@ export default async function handler(req, res) {
       FROM campaign
       WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
     `);
+
+    console.log("ROWS:", rows.length);
 
     let impressions = 0;
     let clicks = 0;
@@ -81,14 +90,12 @@ export default async function handler(req, res) {
     const cpc = clicks > 0 ? cost / clicks : 0;
     const conversion_rate = clicks > 0 ? (conversions / clicks) * 100 : 0;
 
-    // 📈 CHART
     const chartData = rows.map((row) => ({
       name: row.campaign.name,
       impressions: Number(row.metrics.impressions || 0),
       clicks: Number(row.metrics.clicks || 0),
     }));
 
-    // ✅ FORMATO CORRETO (ESSA É A CORREÇÃO REAL)
     const snapshot = {
       summary: {
         impressions,
@@ -125,17 +132,20 @@ export default async function handler(req, res) {
       RETURNING *
     `;
 
+    console.log("REPORT CREATED:", result[0].id);
+
     return res.json({
       success: true,
       reportId: result[0].id,
     });
-} catch (err) {
-  console.error("GENERATE ERROR:", err);
 
-  return res.status(500).json({
-    success: false,
-    error: err.message,
-    stack: err.stack,
-  });
-}
+  } catch (err) {
+    console.error("GENERATE ERROR:", err);
+
+    return res.status(500).json({
+      success: false,
+      error: err.message,
+      stack: err.stack,
+    });
+  }
 }
