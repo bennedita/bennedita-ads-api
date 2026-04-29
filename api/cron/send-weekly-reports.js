@@ -2,6 +2,10 @@ import { neon } from "@neondatabase/serverless";
 
 const sql = neon(process.env.POSTGRES_URL);
 
+function getAppUrl() {
+  return "https://lead-report-peek.lovable.app";
+}
+
 export default async function handler(req, res) {
   try {
     // 1. Buscar clientes com semanal ativo
@@ -57,14 +61,28 @@ export default async function handler(req, res) {
 
       const report = reportResult[0];
 
-      // 5. Enviar email
+      // 5. Enviar email (CORRIGIDO)
       await fetch(`${process.env.BASE_URL}/api/send-email`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          reportId: report.id,
+          to: client.email,
+          subject: `Relatório Google Ads - ${client.name}`,
+          html: `
+            <h2>Relatório de Performance</h2>
+            <p>Olá!</p>
+            <p>Segue o relatório referente a <strong>${period}</strong>.</p>
+            <p>
+              <a href="${getAppUrl()}/report/${client.report_slug}">
+                Acessar relatório
+              </a>
+            </p>
+            <br/>
+            <p>Bennedita Marketing Digital</p>
+          `,
+          reportUrl: `${getAppUrl()}/report/${client.report_slug}`
         }),
       });
 
