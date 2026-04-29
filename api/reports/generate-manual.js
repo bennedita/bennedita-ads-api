@@ -129,12 +129,13 @@ export default async function handler(req, res) {
       success: true,
       reportId: result[0].id,
     });
-  } catch (err) {
-    console.error("GENERATE ERROR:", err);
+} catch (err) {
+  console.error("GENERATE ERROR:", err);
 
-    return res.status(500).json({
-      success: false,
-      error: err.message,
-    });
-  }
+  return res.status(500).json({
+    success: false,
+    error: err.message,
+    stack: err.stack,
+  });
+}
 }
