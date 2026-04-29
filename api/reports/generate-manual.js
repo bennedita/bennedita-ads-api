@@ -48,7 +48,28 @@ export default async function handler(req, res) {
     });
 
     // 📊 QUERY
-    const rows = await customer.query(`
+    let rows = [];
+
+try {
+  rows = await customer.query(`
+    SELECT
+      campaign.name,
+      metrics.impressions,
+      metrics.clicks,
+      metrics.cost_micros,
+      metrics.conversions
+    FROM campaign
+    WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
+  `);
+} catch (googleError) {
+  console.error("🔥 GOOGLE ADS ERROR:", googleError);
+
+  return res.status(500).json({
+    success: false,
+    error: "Erro na API do Google Ads",
+    details: googleError.message,
+  });
+}
       SELECT
         campaign.name,
         metrics.impressions,
