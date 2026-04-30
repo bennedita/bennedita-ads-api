@@ -21,10 +21,7 @@ export default async function handler(req, res) {
     }
 
     const clients = await sql`
-      SELECT *
-      FROM clients
-      WHERE report_slug = ${slug}
-      LIMIT 1
+      SELECT * FROM clients WHERE report_slug = ${slug} LIMIT 1
     `;
 
     if (clients.length === 0) {
@@ -35,7 +32,7 @@ export default async function handler(req, res) {
     }
 
     const dbClient = clients[0];
-    const customerIdClean = String(dbClient.google_customer_id || "").replace(/-/g, "");
+    const customerIdClean = String(dbClient.google_customer_id).replace(/-/g, "");
     const period = `${startDate} até ${endDate}`;
 
     const customer = client.Customer({
@@ -44,33 +41,33 @@ export default async function handler(req, res) {
       login_customer_id: process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID,
     });
 
-    let rows = [];
-
-    try {
-      rows = await customer.query(`
-        SELECT
-          campaign.name,
-          metrics.impressions,
-          metrics.clicks,
-          metrics.cost_micros,
-          metrics.conversions
-        FROM campaign
-        WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
-      `);
-    } catch (error) {
-      return res.status(500).json({
-        success: false,
-        step: "google_ads",
-        error: error.message,
-      });
-    }
+    // =========================
+    // 🔥 QUERY COM DATA
+    // =========================
+    const rows = await customer.query(`
+      SELECT
+        segments.date,
+        campaign.name,
+        metrics.impressions,
+        metrics.clicks,
+        metrics.cost_micros,
+        metrics.conversions
+      FROM campaign
+      WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
+    `);
 
     let impressions = 0;
     let clicks = 0;
     let cost = 0;
     let conversions = 0;
 
-    const campaigns = rows.map((row) => {
+    const campaignsMap = {};
+    const chartMap = {};
+
+    rows.forEach((row) => {
+      const date = row.segments.date;
+      const name = row.campaign.name;
+
       const imp = Number(row.metrics.impressions || 0);
       const clk = Number(row.metrics.clicks || 0);
       const cst = Number(row.metrics.cost_micros || 0) / 1_000_000;
@@ -81,26 +78,44 @@ export default async function handler(req, res) {
       cost += cst;
       conversions += conv;
 
-      return {
-        name: row.campaign.name,
-        impressions: imp,
-        clicks: clk,
-        cost: cst,
-        conversions: conv,
-      };
+      // campanhas (agrupado)
+      if (!campaignsMap[name]) {
+        campaignsMap[name] = {
+          name,
+          impressions: 0,
+          clicks: 0,
+          cost: 0,
+          conversions: 0,
+        };
+      }
+
+      campaignsMap[name].impressions += imp;
+      campaignsMap[name].clicks += clk;
+      campaignsMap[name].cost += cst;
+      campaignsMap[name].conversions += conv;
+
+      // chart por data
+      if (!chartMap[date]) {
+        chartMap[date] = {
+          date,
+          cost: 0,
+          conversions: 0,
+        };
+      }
+
+      chartMap[date].cost += cst;
+      chartMap[date].conversions += conv;
     });
+
+    const campaigns = Object.values(campaignsMap);
+
+    const chartData = Object.values(chartMap).sort((a, b) =>
+      a.date.localeCompare(b.date)
+    );
 
     const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
     const cpc = clicks > 0 ? cost / clicks : 0;
     const conversion_rate = clicks > 0 ? (conversions / clicks) * 100 : 0;
-
-    const chartData = campaigns.map((c) => ({
-      name: c.name,
-      impressions: c.impressions,
-      clicks: c.clicks,
-      cost: c.cost,
-      conversions: c.conversions,
-    }));
 
     const accountName = dbClient.name || "Cliente";
 
@@ -125,9 +140,11 @@ export default async function handler(req, res) {
       source: "google_ads",
     };
 
+    // =========================
+    // UPSERT
+    // =========================
     const existing = await sql`
-      SELECT id
-      FROM reports
+      SELECT id FROM reports
       WHERE client_id = ${dbClient.id}
       AND period = ${period}
       LIMIT 1
@@ -136,15 +153,12 @@ export default async function handler(req, res) {
     if (existing.length > 0) {
       const updated = await sql`
         UPDATE reports
-        SET
-          snapshot_json = ${JSON.stringify(snapshot)}::jsonb,
-          summary = ${JSON.stringify(snapshot.summary)}::jsonb,
-          campaigns = ${JSON.stringify(campaigns)}::jsonb,
-          chart_data = ${JSON.stringify(chartData)}::jsonb,
-          account_name = ${accountName},
-          client_slug = ${dbClient.report_slug},
-          customer_id = ${customerIdClean},
-          status = 'generated'
+        SET snapshot_json = ${JSON.stringify(snapshot)}::jsonb,
+            summary = ${JSON.stringify(snapshot.summary)}::jsonb,
+            campaigns = ${JSON.stringify(campaigns)}::jsonb,
+            chart_data = ${JSON.stringify(chartData)}::jsonb,
+            account_name = ${accountName},
+            status = 'generated'
         WHERE id = ${existing[0].id}
         RETURNING *
       `;
@@ -166,8 +180,6 @@ export default async function handler(req, res) {
         campaigns,
         chart_data,
         account_name,
-        client_slug,
-        customer_id,
         status,
         created_at
       )
@@ -179,8 +191,6 @@ export default async function handler(req, res) {
         ${JSON.stringify(campaigns)}::jsonb,
         ${JSON.stringify(chartData)}::jsonb,
         ${accountName},
-        ${dbClient.report_slug},
-        ${customerIdClean},
         'generated',
         NOW()
       )
@@ -191,7 +201,6 @@ export default async function handler(req, res) {
       success: true,
       reportId: result[0].id,
       reused: false,
-      updated: false,
     });
   } catch (err) {
     return res.status(500).json({
