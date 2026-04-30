@@ -15,8 +15,6 @@ async function generatePdf(reportUrl) {
     body: JSON.stringify({
       source: reportUrl + "?print=true", // ✅ garante versão print
       format: "A4",
-      print_background: true,
-      use_print: true,
     }),
   });
 
