@@ -21,7 +21,10 @@ export default async function handler(req, res) {
     }
 
     const clients = await sql`
-      SELECT * FROM clients WHERE report_slug = ${slug} LIMIT 1
+      SELECT *
+      FROM clients
+      WHERE report_slug = ${slug}
+      LIMIT 1
     `;
 
     if (clients.length === 0) {
@@ -32,25 +35,8 @@ export default async function handler(req, res) {
     }
 
     const dbClient = clients[0];
-    const customerIdClean = dbClient.google_customer_id.replace(/-/g, "");
-
+    const customerIdClean = String(dbClient.google_customer_id || "").replace(/-/g, "");
     const period = `${startDate} até ${endDate}`;
-
-    // ✅ 1. VERIFICAR SE JÁ EXISTE
-    const existing = await sql`
-      SELECT * FROM reports
-      WHERE client_id = ${dbClient.id}
-      AND period = ${period}
-      LIMIT 1
-    `;
-
-    if (existing.length > 0) {
-      return res.json({
-        success: true,
-        reportId: existing[0].id,
-        reused: true,
-      });
-    }
 
     const customer = client.Customer({
       customer_id: customerIdClean,
@@ -58,7 +44,6 @@ export default async function handler(req, res) {
       login_customer_id: process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID,
     });
 
-    // 🔥 GOOGLE ADS
     let rows = [];
 
     try {
@@ -113,9 +98,18 @@ export default async function handler(req, res) {
       name: c.name,
       impressions: c.impressions,
       clicks: c.clicks,
+      cost: c.cost,
+      conversions: c.conversions,
     }));
 
+    const accountName = dbClient.name || "Cliente";
+
     const snapshot = {
+      account_name: accountName,
+      client_name: accountName,
+      client_slug: dbClient.report_slug,
+      customer_id: customerIdClean,
+      period,
       summary: {
         impressions,
         clicks,
@@ -131,11 +125,49 @@ export default async function handler(req, res) {
       source: "google_ads",
     };
 
+    const existing = await sql`
+      SELECT id
+      FROM reports
+      WHERE client_id = ${dbClient.id}
+      AND period = ${period}
+      LIMIT 1
+    `;
+
+    if (existing.length > 0) {
+      const updated = await sql`
+        UPDATE reports
+        SET
+          snapshot_json = ${JSON.stringify(snapshot)}::jsonb,
+          summary = ${JSON.stringify(snapshot.summary)}::jsonb,
+          campaigns = ${JSON.stringify(campaigns)}::jsonb,
+          chart_data = ${JSON.stringify(chartData)}::jsonb,
+          account_name = ${accountName},
+          client_slug = ${dbClient.report_slug},
+          customer_id = ${customerIdClean},
+          status = 'generated'
+        WHERE id = ${existing[0].id}
+        RETURNING *
+      `;
+
+      return res.json({
+        success: true,
+        reportId: updated[0].id,
+        reused: true,
+        updated: true,
+      });
+    }
+
     const result = await sql`
       INSERT INTO reports (
         client_id,
         period,
         snapshot_json,
+        summary,
+        campaigns,
+        chart_data,
+        account_name,
+        client_slug,
+        customer_id,
         status,
         created_at
       )
@@ -143,6 +175,12 @@ export default async function handler(req, res) {
         ${dbClient.id},
         ${period},
         ${JSON.stringify(snapshot)}::jsonb,
+        ${JSON.stringify(snapshot.summary)}::jsonb,
+        ${JSON.stringify(campaigns)}::jsonb,
+        ${JSON.stringify(chartData)}::jsonb,
+        ${accountName},
+        ${dbClient.report_slug},
+        ${customerIdClean},
         'generated',
         NOW()
       )
@@ -153,8 +191,8 @@ export default async function handler(req, res) {
       success: true,
       reportId: result[0].id,
       reused: false,
+      updated: false,
     });
-
   } catch (err) {
     return res.status(500).json({
       success: false,
