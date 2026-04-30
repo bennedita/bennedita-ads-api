@@ -32,8 +32,16 @@ export default async function handler(req, res) {
     }
 
     const dbClient = clients[0];
-    const customerIdClean = String(dbClient.google_customer_id).replace(/-/g, "");
+    const customerIdClean = dbClient.google_customer_id.replace(/-/g, "");
     const period = `${startDate} até ${endDate}`;
+
+    // 🔁 Verifica existente
+    const existing = await sql`
+      SELECT * FROM reports
+      WHERE client_id = ${dbClient.id}
+      AND period = ${period}
+      LIMIT 1
+    `;
 
     const customer = client.Customer({
       customer_id: customerIdClean,
@@ -41,20 +49,28 @@ export default async function handler(req, res) {
       login_customer_id: process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID,
     });
 
-    // =========================
-    // 🔥 QUERY COM DATA
-    // =========================
-    const rows = await customer.query(`
-      SELECT
-        segments.date,
-        campaign.name,
-        metrics.impressions,
-        metrics.clicks,
-        metrics.cost_micros,
-        metrics.conversions
-      FROM campaign
-      WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
-    `);
+    // 🔥 QUERY CORRETA (com data)
+    let rows = [];
+
+    try {
+      rows = await customer.query(`
+        SELECT
+          segments.date,
+          campaign.name,
+          metrics.impressions,
+          metrics.clicks,
+          metrics.cost_micros,
+          metrics.conversions
+        FROM campaign
+        WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
+      `);
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        step: "google_ads",
+        error: error.message,
+      });
+    }
 
     let impressions = 0;
     let clicks = 0;
@@ -78,7 +94,7 @@ export default async function handler(req, res) {
       cost += cst;
       conversions += conv;
 
-      // campanhas (agrupado)
+      // 📊 Campaigns
       if (!campaignsMap[name]) {
         campaignsMap[name] = {
           name,
@@ -94,7 +110,7 @@ export default async function handler(req, res) {
       campaignsMap[name].cost += cst;
       campaignsMap[name].conversions += conv;
 
-      // chart por data
+      // 📈 Chart por data
       if (!chartMap[date]) {
         chartMap[date] = {
           date,
@@ -108,7 +124,6 @@ export default async function handler(req, res) {
     });
 
     const campaigns = Object.values(campaignsMap);
-
     const chartData = Object.values(chartMap).sort((a, b) =>
       a.date.localeCompare(b.date)
     );
@@ -117,14 +132,7 @@ export default async function handler(req, res) {
     const cpc = clicks > 0 ? cost / clicks : 0;
     const conversion_rate = clicks > 0 ? (conversions / clicks) * 100 : 0;
 
-    const accountName = dbClient.name || "Cliente";
-
     const snapshot = {
-      account_name: accountName,
-      client_name: accountName,
-      client_slug: dbClient.report_slug,
-      customer_id: customerIdClean,
-      period,
       summary: {
         impressions,
         clicks,
@@ -140,68 +148,44 @@ export default async function handler(req, res) {
       source: "google_ads",
     };
 
-    // =========================
-    // UPSERT
-    // =========================
-    const existing = await sql`
-      SELECT id FROM reports
-      WHERE client_id = ${dbClient.id}
-      AND period = ${period}
-      LIMIT 1
-    `;
+    // 🔁 UPDATE ou INSERT
+    let result;
 
     if (existing.length > 0) {
-      const updated = await sql`
+      result = await sql`
         UPDATE reports
         SET snapshot_json = ${JSON.stringify(snapshot)}::jsonb,
-            summary = ${JSON.stringify(snapshot.summary)}::jsonb,
-            campaigns = ${JSON.stringify(campaigns)}::jsonb,
-            chart_data = ${JSON.stringify(chartData)}::jsonb,
-            account_name = ${accountName},
-            status = 'generated'
+            updated_at = NOW()
         WHERE id = ${existing[0].id}
         RETURNING *
       `;
-
-      return res.json({
-        success: true,
-        reportId: updated[0].id,
-        reused: true,
-        updated: true,
-      });
+    } else {
+      result = await sql`
+        INSERT INTO reports (
+          client_id,
+          period,
+          snapshot_json,
+          status,
+          created_at
+        )
+        VALUES (
+          ${dbClient.id},
+          ${period},
+          ${JSON.stringify(snapshot)}::jsonb,
+          'generated',
+          NOW()
+        )
+        RETURNING *
+      `;
     }
-
-    const result = await sql`
-      INSERT INTO reports (
-        client_id,
-        period,
-        snapshot_json,
-        summary,
-        campaigns,
-        chart_data,
-        account_name,
-        status,
-        created_at
-      )
-      VALUES (
-        ${dbClient.id},
-        ${period},
-        ${JSON.stringify(snapshot)}::jsonb,
-        ${JSON.stringify(snapshot.summary)}::jsonb,
-        ${JSON.stringify(campaigns)}::jsonb,
-        ${JSON.stringify(chartData)}::jsonb,
-        ${accountName},
-        'generated',
-        NOW()
-      )
-      RETURNING *
-    `;
 
     return res.json({
       success: true,
       reportId: result[0].id,
-      reused: false,
+      reused: existing.length > 0,
+      updated: true,
     });
+
   } catch (err) {
     return res.status(500).json({
       success: false,
