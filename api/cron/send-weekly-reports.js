@@ -3,6 +3,9 @@ import { neon } from "@neondatabase/serverless";
 const sql = neon(process.env.POSTGRES_URL);
 
 function getBaseUrl() {
+  if (!process.env.BASE_URL) {
+    throw new Error("BASE_URL não definida");
+  }
   return process.env.BASE_URL;
 }
 
@@ -29,9 +32,9 @@ export default async function handler(req, res) {
         start.setDate(today.getDate() - 7);
         const startDate = start.toISOString().split("T")[0];
 
-        console.log(`Gerando relatório: ${client.name}`);
+        console.log(`➡️ Gerando relatório: ${client.name}`);
 
-        // 🔥 1. GERAR RELATÓRIO REAL
+        // 🔥 1. GERAR RELATÓRIO
         const generateRes = await fetch(
           `${getBaseUrl()}/api/reports/generate-manual?slug=${client.report_slug}&startDate=${startDate}&endDate=${endDate}`
         );
@@ -39,13 +42,16 @@ export default async function handler(req, res) {
         const generateData = await generateRes.json();
 
         if (!generateData.success) {
-          console.error("Erro ao gerar relatório:", generateData);
+          console.error("❌ Erro ao gerar relatório:", generateData);
           continue;
         }
 
         const reportId = generateData.reportId;
 
-        console.log(`Relatório criado: ${reportId}`);
+        console.log(`✅ Relatório pronto: ${reportId}`);
+
+        // 🔗 URL DO RELATÓRIO (COM PRINT)
+        const reportUrl = `${getAppUrl()}/report/${client.report_slug}?print=true`;
 
         // 📧 2. ENVIAR EMAIL
         const emailRes = await fetch(`${getBaseUrl()}/api/send-email`, {
@@ -70,16 +76,22 @@ export default async function handler(req, res) {
               <p>Bennedita Marketing Digital</p>
             `,
             reportId,
-            reportUrl: `${getAppUrl()}/report/${client.report_slug}`
+            reportUrl
           }),
         });
 
         const emailData = await emailRes.json();
-        console.log("Email enviado:", emailData);
+
+        if (!emailRes.ok) {
+          console.error("❌ Erro ao enviar email:", emailData);
+          continue;
+        }
+
+        console.log("📧 Email enviado com PDF:", emailData);
 
         processed++;
       } catch (clientError) {
-        console.error("Erro no cliente:", client.name, clientError);
+        console.error(`❌ Erro no cliente ${client.name}:`, clientError);
       }
     }
 
@@ -88,7 +100,7 @@ export default async function handler(req, res) {
       processed,
     });
   } catch (err) {
-    console.error("CRON ERROR:", err);
+    console.error("🔥 CRON ERROR:", err);
 
     return res.status(500).json({
       error: err.message,
