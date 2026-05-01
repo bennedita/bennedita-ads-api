@@ -9,6 +9,27 @@ const client = new GoogleAdsApi({
   developer_token: process.env.GOOGLE_ADS_DEVELOPER_TOKEN,
 });
 
+function getDatesBetween(start, end) {
+  const dates = [];
+
+  const [y1, m1, d1] = start.split("-").map(Number);
+  const [y2, m2, d2] = end.split("-").map(Number);
+
+  let current = new Date(y1, m1 - 1, d1);
+  const last = new Date(y2, m2 - 1, d2);
+
+  while (current <= last) {
+    const yyyy = current.getFullYear();
+    const mm = String(current.getMonth() + 1).padStart(2, "0");
+    const dd = String(current.getDate()).padStart(2, "0");
+
+    dates.push(`${yyyy}-${mm}-${dd}`);
+    current.setDate(current.getDate() + 1);
+  }
+
+  return dates;
+}
+
 export default async function handler(req, res) {
   try {
     const { slug, startDate, endDate } = req.query;
@@ -16,7 +37,7 @@ export default async function handler(req, res) {
     if (!slug || !startDate || !endDate) {
       return res.status(400).json({
         success: false,
-        error: "Missing slug, startDate or endDate",
+        error: "Missing params",
       });
     }
 
@@ -24,7 +45,7 @@ export default async function handler(req, res) {
       SELECT * FROM clients WHERE report_slug = ${slug} LIMIT 1
     `;
 
-    if (clients.length === 0) {
+    if (!clients.length) {
       return res.status(404).json({
         success: false,
         error: "Client not found",
@@ -32,45 +53,27 @@ export default async function handler(req, res) {
     }
 
     const dbClient = clients[0];
-    const customerIdClean = dbClient.google_customer_id.replace(/-/g, "");
+    const customerId = String(dbClient.google_customer_id).replace(/-/g, "");
     const period = `${startDate} até ${endDate}`;
 
-    // 🔁 Verifica existente
-    const existing = await sql`
-      SELECT * FROM reports
-      WHERE client_id = ${dbClient.id}
-      AND period = ${period}
-      LIMIT 1
-    `;
-
     const customer = client.Customer({
-      customer_id: customerIdClean,
+      customer_id: customerId,
       refresh_token: process.env.GOOGLE_ADS_REFRESH_TOKEN,
       login_customer_id: process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID,
     });
 
-    // 🔥 QUERY CORRETA (com data)
-    let rows = [];
-
-    try {
-      rows = await customer.query(`
-        SELECT
-          segments.date,
-          campaign.name,
-          metrics.impressions,
-          metrics.clicks,
-          metrics.cost_micros,
-          metrics.conversions
-        FROM campaign
-        WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
-      `);
-    } catch (error) {
-      return res.status(500).json({
-        success: false,
-        step: "google_ads",
-        error: error.message,
-      });
-    }
+    // 🔥 QUERY
+    const rows = await customer.query(`
+      SELECT
+        segments.date,
+        campaign.name,
+        metrics.impressions,
+        metrics.clicks,
+        metrics.cost_micros,
+        metrics.conversions
+      FROM campaign
+      WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
+    `);
 
     let impressions = 0;
     let clicks = 0;
@@ -94,7 +97,7 @@ export default async function handler(req, res) {
       cost += cst;
       conversions += conv;
 
-      // 📊 Campaigns
+      // campanhas
       if (!campaignsMap[name]) {
         campaignsMap[name] = {
           name,
@@ -110,13 +113,9 @@ export default async function handler(req, res) {
       campaignsMap[name].cost += cst;
       campaignsMap[name].conversions += conv;
 
-      // 📈 Chart por data
+      // chart
       if (!chartMap[date]) {
-        chartMap[date] = {
-          date,
-          cost: 0,
-          conversions: 0,
-        };
+        chartMap[date] = { date, cost: 0, conversions: 0 };
       }
 
       chartMap[date].cost += cst;
@@ -124,36 +123,26 @@ export default async function handler(req, res) {
     });
 
     const campaigns = Object.values(campaignsMap);
-    function getDatesBetween(start, end) {
-  const dates = [];
-  const current = new Date(start);
-  const last = new Date(end);
 
-  while (current <= last) {
-    dates.push(current.toISOString().split("T")[0]);
-    current.setDate(current.getDate() + 1);
-  }
+    // ✅ gerar TODOS os dias
+    const allDates = getDatesBetween(startDate, endDate);
 
-  return dates;
-}
+    const chartData = allDates.map((date) => ({
+      date,
+      cost: chartMap[date]?.cost || 0,
+      conversions: chartMap[date]?.conversions || 0,
+    }));
 
-const allDates = getDatesBetween(startDate, endDate);
-
-const chartData = allDates.map((date) => {
-  return {
-    date,
-    cost: chartMap[date]?.cost || 0,
-    conversions: chartMap[date]?.conversions || 0,
-  };
-});
-      a.date.localeCompare(b.date)
-    );
-
-    const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
-    const cpc = clicks > 0 ? cost / clicks : 0;
-    const conversion_rate = clicks > 0 ? (conversions / clicks) * 100 : 0;
+    const ctr = impressions ? (clicks / impressions) * 100 : 0;
+    const cpc = clicks ? cost / clicks : 0;
+    const conversion_rate = clicks ? (conversions / clicks) * 100 : 0;
 
     const snapshot = {
+      account_name: dbClient.name,
+      client_name: dbClient.name,
+      client_slug: dbClient.report_slug,
+      customer_id: customerId,
+      period,
       summary: {
         impressions,
         clicks,
@@ -169,41 +158,52 @@ const chartData = allDates.map((date) => {
       source: "google_ads",
     };
 
-    // 🔁 UPDATE ou INSERT
-    let result;
+    // 🔁 UPSERT
+    const existing = await sql`
+      SELECT id FROM reports
+      WHERE client_id = ${dbClient.id}
+      AND period = ${period}
+      LIMIT 1
+    `;
 
     if (existing.length > 0) {
-      result = await sql`
+      const updated = await sql`
         UPDATE reports
         SET snapshot_json = ${JSON.stringify(snapshot)}::jsonb
         WHERE id = ${existing[0].id}
         RETURNING *
       `;
-    } else {
-      result = await sql`
-        INSERT INTO reports (
-          client_id,
-          period,
-          snapshot_json,
-          status,
-          created_at
-        )
-        VALUES (
-          ${dbClient.id},
-          ${period},
-          ${JSON.stringify(snapshot)}::jsonb,
-          'generated',
-          NOW()
-        )
-        RETURNING *
-      `;
+
+      return res.json({
+        success: true,
+        reportId: updated[0].id,
+        reused: true,
+        updated: true,
+      });
     }
+
+    const inserted = await sql`
+      INSERT INTO reports (
+        client_id,
+        period,
+        snapshot_json,
+        status,
+        created_at
+      )
+      VALUES (
+        ${dbClient.id},
+        ${period},
+        ${JSON.stringify(snapshot)}::jsonb,
+        'generated',
+        NOW()
+      )
+      RETURNING *
+    `;
 
     return res.json({
       success: true,
-      reportId: result[0].id,
-      reused: existing.length > 0,
-      updated: true,
+      reportId: inserted[0].id,
+      reused: false,
     });
 
   } catch (err) {
