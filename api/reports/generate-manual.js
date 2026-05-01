@@ -154,8 +154,7 @@ export default async function handler(req, res) {
     if (existing.length > 0) {
       result = await sql`
         UPDATE reports
-        SET snapshot_json = ${JSON.stringify(snapshot)}::jsonb,
-            updated_at = NOW()
+        SET snapshot_json = ${JSON.stringify(snapshot)}::jsonb
         WHERE id = ${existing[0].id}
         RETURNING *
       `;
