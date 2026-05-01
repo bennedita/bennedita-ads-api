@@ -124,7 +124,28 @@ export default async function handler(req, res) {
     });
 
     const campaigns = Object.values(campaignsMap);
-    const chartData = Object.values(chartMap).sort((a, b) =>
+    function getDatesBetween(start, end) {
+  const dates = [];
+  const current = new Date(start);
+  const last = new Date(end);
+
+  while (current <= last) {
+    dates.push(current.toISOString().split("T")[0]);
+    current.setDate(current.getDate() + 1);
+  }
+
+  return dates;
+}
+
+const allDates = getDatesBetween(startDate, endDate);
+
+const chartData = allDates.map((date) => {
+  return {
+    date,
+    cost: chartMap[date]?.cost || 0,
+    conversions: chartMap[date]?.conversions || 0,
+  };
+});
       a.date.localeCompare(b.date)
     );
 
