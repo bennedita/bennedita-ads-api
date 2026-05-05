@@ -13,6 +13,10 @@ function getAppUrl() {
   return "https://lead-report-peek.lovable.app";
 }
 
+function formatDate(date) {
+  return date.toISOString().split("T")[0];
+}
+
 export default async function handler(req, res) {
   try {
     const clients = await sql`
@@ -24,17 +28,22 @@ export default async function handler(req, res) {
 
     for (const client of clients) {
       try {
-        // 📅 período (últimos 7 dias)
+        // 📅 SEMANA COMPLETA ANTERIOR (segunda → domingo)
         const today = new Date();
-        const endDate = today.toISOString().split("T")[0];
 
-        const start = new Date();
-        start.setDate(today.getDate() - 7);
-        const startDate = start.toISOString().split("T")[0];
+        const lastMonday = new Date(today);
+        lastMonday.setDate(today.getDate() - today.getDay() - 6);
+
+        const lastSunday = new Date(today);
+        lastSunday.setDate(today.getDate() - today.getDay());
+
+        const startDate = formatDate(lastMonday);
+        const endDate = formatDate(lastSunday);
 
         console.log(`➡️ Gerando relatório: ${client.name}`);
+        console.log(`📅 Período: ${startDate} até ${endDate}`);
 
-        // 🔥 1. GERAR RELATÓRIO
+        // 🔥 GERAR RELATÓRIO
         const generateRes = await fetch(
           `${getBaseUrl()}/api/reports/generate-manual?slug=${client.report_slug}&startDate=${startDate}&endDate=${endDate}`
         );
@@ -50,33 +59,14 @@ export default async function handler(req, res) {
 
         console.log(`✅ Relatório pronto: ${reportId}`);
 
-        // 🔗 URL DO RELATÓRIO (COM PRINT)
-        const reportUrl = `${getAppUrl()}/report/${client.report_slug}?print=true`;
-
-        // 📧 2. ENVIAR EMAIL
+        // 📧 ENVIAR EMAIL
         const emailRes = await fetch(`${getBaseUrl()}/api/send-email`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            to: client.email,
-            subject: `Relatório Google Ads - ${client.name}`,
-            html: `
-              <h2>Relatório de Performance</h2>
-              <p>Olá!</p>
-              <p>Segue o relatório referente ao período:</p>
-              <p><strong>${startDate} até ${endDate}</strong></p>
-              <p>
-                <a href="${getAppUrl()}/report/${client.report_slug}">
-                  Acessar relatório
-                </a>
-              </p>
-              <br/>
-              <p>Bennedita Marketing Digital</p>
-            `,
             reportId,
-            reportUrl
           }),
         });
 
@@ -87,7 +77,7 @@ export default async function handler(req, res) {
           continue;
         }
 
-        console.log("📧 Email enviado com PDF:", emailData);
+        console.log("📧 Email enviado:", emailData);
 
         processed++;
       } catch (clientError) {
