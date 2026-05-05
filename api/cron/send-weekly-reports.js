@@ -9,26 +9,29 @@ function getBaseUrl() {
   return process.env.BASE_URL;
 }
 
-function getAppUrl() {
-  return "https://lead-report-peek.lovable.app";
-}
-
 function formatDate(date) {
   return date.toISOString().split("T")[0];
 }
 
 export default async function handler(req, res) {
   try {
+    console.log("🔥 CRON WEEKLY START");
+
     const clients = await sql`
-      SELECT * FROM clients
-      WHERE weekly_report_enabled = true
+      SELECT id, name, report_slug, weekly_report_enabled
+      FROM clients
     `;
+
+    console.log("👥 TODOS CLIENTES:", clients);
+
+    const activeClients = clients.filter(c => c.weekly_report_enabled === true);
+
+    console.log("✅ CLIENTES ATIVOS:", activeClients);
 
     let processed = 0;
 
-    for (const client of clients) {
+    for (const client of activeClients) {
       try {
-        // 📅 SEMANA COMPLETA ANTERIOR (segunda → domingo)
         const today = new Date();
 
         const lastMonday = new Date(today);
@@ -40,50 +43,41 @@ export default async function handler(req, res) {
         const startDate = formatDate(lastMonday);
         const endDate = formatDate(lastSunday);
 
-        console.log(`➡️ Gerando relatório: ${client.name}`);
-        console.log(`📅 Período: ${startDate} até ${endDate}`);
+        console.log(`➡️ ${client.name} | ${startDate} → ${endDate}`);
 
-        // 🔥 GERAR RELATÓRIO
         const generateRes = await fetch(
           `${getBaseUrl()}/api/reports/generate-manual?slug=${client.report_slug}&startDate=${startDate}&endDate=${endDate}`
         );
 
         const generateData = await generateRes.json();
 
-        if (!generateData.success) {
-          console.error("❌ Erro ao gerar relatório:", generateData);
-          continue;
-        }
+        console.log("📊 GENERATE:", generateData);
+
+        if (!generateData.success) continue;
 
         const reportId = generateData.reportId;
 
-        console.log(`✅ Relatório pronto: ${reportId}`);
-
-        // 📧 ENVIAR EMAIL
         const emailRes = await fetch(`${getBaseUrl()}/api/send-email`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            reportId,
-          }),
+          body: JSON.stringify({ reportId }),
         });
 
         const emailData = await emailRes.json();
 
-        if (!emailRes.ok) {
-          console.error("❌ Erro ao enviar email:", emailData);
-          continue;
-        }
+        console.log("📧 EMAIL:", emailData);
 
-        console.log("📧 Email enviado:", emailData);
+        if (!emailRes.ok) continue;
 
         processed++;
-      } catch (clientError) {
-        console.error(`❌ Erro no cliente ${client.name}:`, clientError);
+      } catch (err) {
+        console.error("❌ ERRO CLIENTE:", err);
       }
     }
+
+    console.log("✅ FINAL:", processed);
 
     return res.json({
       success: true,
