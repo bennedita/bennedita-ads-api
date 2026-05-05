@@ -1,129 +1,100 @@
-import { Resend } from "resend";
 import { neon } from "@neondatabase/serverless";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 const sql = neon(process.env.POSTGRES_URL);
 
-function parseRecipients(rawEmail) {
-  if (!rawEmail) return [];
-  return String(rawEmail)
-    .split(/[;,]/)
-    .map((item) => item.trim())
-    .filter(Boolean);
+function getBaseUrl() {
+  return process.env.BASE_URL;
 }
 
 function getAppUrl() {
   return "https://lead-report-peek.lovable.app";
 }
 
-async function generatePdf(report) {
-  const reportUrl = `${getAppUrl()}/report/${report.id}?print=true`;
-
-  const response = await fetch("https://api.pdfshift.io/v3/convert/pdf", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization:
-        "Basic " +
-        Buffer.from("api:" + process.env.PDFSHIFT_API_KEY).toString("base64"),
-    },
-    body: JSON.stringify({
-      source: reportUrl,
-      use_print: true,
-      delay: 8000,
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error("PDFShift error: " + errorText);
-  }
-
-  const buffer = Buffer.from(await response.arrayBuffer());
-
-  if (!buffer.length) {
-    throw new Error("PDF vazio");
-  }
-
-  return {
-    filename: `relatorio-${report.id}.pdf`,
-    content: buffer,
-  };
-}
-
 export default async function handler(req, res) {
   try {
-    const { reportId } =
-      req.method === "POST" ? req.body : req.query;
-
-    if (!reportId) {
-      return res.status(400).json({ error: "Missing reportId" });
-    }
-
-    const rows = await sql`
-      SELECT r.*, c.email, c.name
-      FROM reports r
-      JOIN clients c ON r.client_id = c.id
-      WHERE r.id = ${reportId}
-      LIMIT 1
+    const clients = await sql`
+      SELECT * FROM clients
+      WHERE weekly_report_enabled = true
     `;
 
-    const report = rows?.[0];
+    let processed = 0;
 
-    if (!report) {
-      return res.status(404).json({ error: "Report not found" });
+    for (const client of clients) {
+      try {
+        // 📅 período do mês anterior
+        const today = new Date();
+
+        const firstDayLastMonth = new Date(
+          today.getFullYear(),
+          today.getMonth() - 1,
+          1
+        );
+
+        const lastDayLastMonth = new Date(
+          today.getFullYear(),
+          today.getMonth(),
+          0
+        );
+
+        const startDate = firstDayLastMonth.toISOString().split("T")[0];
+        const endDate = lastDayLastMonth.toISOString().split("T")[0];
+
+        console.log(`Gerando relatório mensal: ${client.name}`);
+
+        // 1. gerar relatório
+        const generateRes = await fetch(
+          `${getBaseUrl()}/api/reports/generate-manual?slug=${client.report_slug}&startDate=${startDate}&endDate=${endDate}`
+        );
+
+        const generateData = await generateRes.json();
+
+        if (!generateData.success) {
+          console.error("Erro ao gerar relatório:", generateData);
+          continue;
+        }
+
+        const reportId = generateData.reportId;
+
+        // 2. enviar email
+        const emailRes = await fetch(`${getBaseUrl()}/api/send-email`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            to: client.email,
+            subject: `Relatório Mensal Google Ads - ${client.name}`,
+            html: `
+              <h2>Relatório Mensal</h2>
+              <p>Olá!</p>
+              <p>Segue o relatório do período:</p>
+              <p><strong>${startDate} até ${endDate}</strong></p>
+              <p>
+                <a href="${getAppUrl()}/report/${client.report_slug}">
+                  Acessar relatório
+                </a>
+              </p>
+            `,
+            reportId,
+          }),
+        });
+
+        const emailData = await emailRes.json();
+        console.log("Email enviado:", emailData);
+
+        processed++;
+      } catch (err) {
+        console.error("Erro no cliente:", client.name, err);
+      }
     }
-
-    const recipients = parseRecipients(report.email);
-
-    if (!recipients.length) {
-      return res.status(400).json({ error: "No email" });
-    }
-
-    const reportUrl = `${getAppUrl()}/report/${report.id}`;
-
-    let attachment;
-    try {
-      attachment = await generatePdf(report);
-    } catch (err) {
-      console.error("PDF ERROR:", err);
-      return res.status(500).json({
-        error: "PDF generation failed",
-        details: err.message,
-      });
-    }
-
-    const email = await resend.emails.send({
-      from: "Relatórios <relatorios@mail.bennedita.com.br>",
-      to: recipients,
-      bcc: process.env.BCC_EMAIL,
-      subject: `Relatório Google Ads - ${report.account_name}`,
-      html: `
-        <h2>Relatório de Performance Google Ads</h2>
-        <p>Olá!</p>
-        <p>Segue o relatório referente a <strong>${report.period}</strong>.</p>
-
-        <p>
-          <a href="${reportUrl}">Acessar relatório</a>
-        </p>
-
-        <p>O PDF segue anexado.</p>
-
-        <br/>
-        <p>
-          Atenciosamente,<br/>
-          Vinicius Faria<br/>
-          Bennedita Marketing Digital
-        </p>
-      `,
-      attachments: [attachment],
-    });
 
     return res.json({
       success: true,
-      email,
+      processed,
     });
   } catch (err) {
+    console.error("CRON MENSAL ERROR:", err);
+
     return res.status(500).json({
       error: err.message,
     });
