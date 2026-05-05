@@ -12,10 +12,10 @@ function getAppUrl() {
 
 export default async function handler(req, res) {
   try {
-    const clients = await sql`
-      SELECT * FROM clients
-      WHERE weekly_report_enabled = true
-    `;
+   const clients = await sql`
+  SELECT * FROM clients
+  WHERE report_slug = 'vinicius-faria---cantor'
+`;
 
     let processed = 0;
 
@@ -56,28 +56,15 @@ export default async function handler(req, res) {
         const reportId = generateData.reportId;
 
         // 2. enviar email
-        const emailRes = await fetch(`${getBaseUrl()}/api/send-email`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            to: client.email,
-            subject: `Relatório Mensal Google Ads - ${client.name}`,
-            html: `
-              <h2>Relatório Mensal</h2>
-              <p>Olá!</p>
-              <p>Segue o relatório do período:</p>
-              <p><strong>${startDate} até ${endDate}</strong></p>
-              <p>
-                <a href="${getAppUrl()}/report/${client.report_slug}">
-                  Acessar relatório
-                </a>
-              </p>
-            `,
-            reportId,
-          }),
-        });
+  const emailRes = await fetch(`${getBaseUrl()}/api/send-email`, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    reportId
+  }),
+});
 
         const emailData = await emailRes.json();
         console.log("Email enviado:", emailData);
