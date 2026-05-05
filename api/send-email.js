@@ -33,6 +33,14 @@ async function generatePdf(reportUrl) {
   return Buffer.from(await response.arrayBuffer());
 }
 
+function formatFileName(name) {
+  return name
+    ?.toLowerCase()
+    .replace(/\s+/g, "-")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") || "cliente";
+}
+
 export default async function handler(req, res) {
   try {
     const { reportId } =
@@ -44,7 +52,7 @@ export default async function handler(req, res) {
 
     // 🔥 BUSCA DADOS
     const rows = await sql`
-      SELECT r.*, c.email, c.name
+      SELECT r.*, c.email, c.name as client_name, c.report_slug
       FROM reports r
       JOIN clients c ON r.client_id = c.id
       WHERE r.id = ${reportId}
@@ -61,7 +69,9 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Client without email" });
     }
 
-    const reportUrl = `${getAppUrl()}/report/${report.client_slug}`;
+    const clientName = report.client_name || "Cliente";
+
+    const reportUrl = `${getAppUrl()}/report/${report.report_slug}`;
 
     // 🔥 PDF
     let attachment;
@@ -69,7 +79,7 @@ export default async function handler(req, res) {
       const buffer = await generatePdf(reportUrl);
 
       attachment = {
-        filename: `relatorio-${report.id}.pdf`,
+        filename: `relatorio-${formatFileName(clientName)}.pdf`,
         content: buffer,
       };
     } catch (err) {
@@ -80,18 +90,42 @@ export default async function handler(req, res) {
     const email = await resend.emails.send({
       from: "Relatórios Bennedita <relatorios@mail.bennedita.com.br>",
       to: report.email,
-      subject: `Relatório Google Ads - ${report.client_name}`,
+      subject: `Relatório Google Ads - ${clientName}`,
       html: `
-        <h2>Relatório de Performance</h2>
-        <p>Olá!</p>
-        <p>Segue o relatório referente ao período:</p>
-        <p><strong>${report.period}</strong></p>
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
+          
+          <h2 style="color:#111;">Relatório de Performance</h2>
 
-        <p>
-          <a href="${reportUrl}">Acessar relatório</a>
-        </p>
+          <p>Olá!</p>
 
-        <p>O PDF segue anexado.</p>
+          <p>Segue o relatório referente ao período:</p>
+
+          <p><strong>${report.period || "-"}</strong></p>
+
+          <div style="margin: 30px 0;">
+            <a href="${reportUrl}"
+              style="
+                background-color:#2563eb;
+                color:#fff;
+                padding:14px 24px;
+                text-decoration:none;
+                border-radius:8px;
+                font-weight:bold;
+                display:inline-block;
+              ">
+              Acessar Relatório
+            </a>
+          </div>
+
+          <p>O PDF segue anexado.</p>
+
+          <br/>
+
+          <p>
+            Atenciosamente,<br/>
+            Bennedita Marketing Digital
+          </p>
+        </div>
       `,
       attachments: attachment ? [attachment] : [],
     });
