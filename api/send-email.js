@@ -34,17 +34,37 @@ async function generatePdf(reportUrl) {
 }
 
 function formatFileName(name) {
-  return name
-    ?.toLowerCase()
-    .replace(/\s+/g, "-")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "") || "cliente";
+  return (
+    name
+      ?.toLowerCase()
+      .replace(/\s+/g, "-")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "") || "cliente"
+  );
 }
 
 export default async function handler(req, res) {
+  // ✅ CORS (CRÍTICO)
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
+
   try {
-    const { reportId } =
-      req.method === "POST" ? req.body : req.query;
+    // ✅ parse seguro (Vercel)
+    const body =
+      req.method === "POST"
+        ? typeof req.body === "string"
+          ? JSON.parse(req.body)
+          : req.body
+        : req.query;
+
+    const { reportId } = body;
+
+    console.log("📩 reportId recebido:", reportId);
 
     if (!reportId) {
       return res.status(400).json({ error: "Missing reportId" });
@@ -73,8 +93,11 @@ export default async function handler(req, res) {
 
     const reportUrl = `${getAppUrl()}/report/${report.report_slug}`;
 
+    console.log("🌐 URL do relatório:", reportUrl);
+
     // 🔥 PDF
-    let attachment;
+    let attachment = null;
+
     try {
       const buffer = await generatePdf(reportUrl);
 
@@ -83,7 +106,7 @@ export default async function handler(req, res) {
         content: buffer,
       };
     } catch (err) {
-      console.error("PDF ERROR:", err);
+      console.error("❌ PDF ERROR:", err.message);
     }
 
     // 🔥 EMAIL
@@ -93,7 +116,6 @@ export default async function handler(req, res) {
       subject: `Relatório Google Ads - ${clientName}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
-          
           <h2 style="color:#111;">Relatório de Performance</h2>
 
           <p>Olá!</p>
@@ -130,12 +152,14 @@ export default async function handler(req, res) {
       attachments: attachment ? [attachment] : [],
     });
 
+    console.log("✅ Email enviado:", email?.id);
+
     return res.json({
       success: true,
       email,
     });
   } catch (err) {
-    console.error("SEND EMAIL ERROR:", err);
+    console.error("🔥 SEND EMAIL ERROR:", err);
 
     return res.status(500).json({
       error: err.message,
