@@ -1,8 +1,14 @@
 import { Resend } from "resend";
+import { neon } from "@neondatabase/serverless";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
+const sql = neon(process.env.POSTGRES_URL);
 
-// 🔥 Geração de PDF via PDFShift
+function getAppUrl() {
+  return "https://lead-report-peek.lovable.app";
+}
+
+// 🔥 PDF
 async function generatePdf(reportUrl) {
   const response = await fetch("https://api.pdfshift.io/v3/convert/pdf", {
     method: "POST",
@@ -13,8 +19,9 @@ async function generatePdf(reportUrl) {
         Buffer.from("api:" + process.env.PDFSHIFT_API_KEY).toString("base64"),
     },
     body: JSON.stringify({
-      source: reportUrl + "?print=true", // ✅ garante versão print
+      source: reportUrl + "?print=true",
       format: "A4",
+      delay: 8000,
     }),
   });
 
@@ -27,61 +34,77 @@ async function generatePdf(reportUrl) {
 }
 
 export default async function handler(req, res) {
-  // CORS
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
-
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
-
   try {
-    const { to, subject, html, reportUrl } = req.body;
+    const { reportId } =
+      req.method === "POST" ? req.body : req.query;
 
-    if (!to || !subject || !html) {
-      return res.status(400).json({
-        error: "Missing required fields: to, subject or html",
-      });
+    if (!reportId) {
+      return res.status(400).json({ error: "Missing reportId" });
     }
 
-    let attachments = [];
+    // 🔥 BUSCA DADOS
+    const rows = await sql`
+      SELECT r.*, c.email, c.name
+      FROM reports r
+      JOIN clients c ON r.client_id = c.id
+      WHERE r.id = ${reportId}
+      LIMIT 1
+    `;
 
-    // 🔥 Gera PDF se tiver URL
-    if (reportUrl) {
-      try {
-        const pdfBuffer = await generatePdf(reportUrl);
+    const report = rows?.[0];
 
-        attachments.push({
-          filename: "relatorio.pdf",
-          content: pdfBuffer,
-        });
-      } catch (err) {
-        console.error("Erro ao gerar PDF:", err);
-      }
+    if (!report) {
+      return res.status(404).json({ error: "Report not found" });
     }
 
-    // ✉️ Envio do email
-    const response = await resend.emails.send({
+    if (!report.email) {
+      return res.status(400).json({ error: "Client without email" });
+    }
+
+    const reportUrl = `${getAppUrl()}/report/${report.client_slug}`;
+
+    // 🔥 PDF
+    let attachment;
+    try {
+      const buffer = await generatePdf(reportUrl);
+
+      attachment = {
+        filename: `relatorio-${report.id}.pdf`,
+        content: buffer,
+      };
+    } catch (err) {
+      console.error("PDF ERROR:", err);
+    }
+
+    // 🔥 EMAIL
+    const email = await resend.emails.send({
       from: "Relatórios Bennedita <relatorios@mail.bennedita.com.br>",
-      to,
-      subject,
-      html,
-      attachments,
+      to: report.email,
+      subject: `Relatório Google Ads - ${report.client_name}`,
+      html: `
+        <h2>Relatório de Performance</h2>
+        <p>Olá!</p>
+        <p>Segue o relatório referente ao período:</p>
+        <p><strong>${report.period}</strong></p>
+
+        <p>
+          <a href="${reportUrl}">Acessar relatório</a>
+        </p>
+
+        <p>O PDF segue anexado.</p>
+      `,
+      attachments: attachment ? [attachment] : [],
     });
 
-    return res.status(200).json({
+    return res.json({
       success: true,
-      response,
+      email,
     });
-  } catch (error) {
-    console.error("Erro ao enviar email:", error);
+  } catch (err) {
+    console.error("SEND EMAIL ERROR:", err);
+
     return res.status(500).json({
-      error: error.message,
+      error: err.message,
     });
   }
 }
