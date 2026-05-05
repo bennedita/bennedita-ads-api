@@ -19,13 +19,12 @@ async function generatePdf(reportUrl) {
         Buffer.from("api:" + process.env.PDFSHIFT_API_KEY).toString("base64"),
     },
     body: JSON.stringify({
-  source: reportUrl + "?print=true",
-  format: "A4",
-  landscape: true,
-  zoom: 0.8,
-  print_background: true,
-  delay: 8000,
-}),
+      source: reportUrl + "?print=true",
+      format: "A4",
+      landscape: true, // ✅ mantém mais espaço horizontal
+      print_background: true,
+      delay: 8000,
+    }),
   });
 
   if (!response.ok) {
@@ -47,7 +46,7 @@ function formatFileName(name) {
 }
 
 export default async function handler(req, res) {
-  // ✅ CORS (CRÍTICO)
+  // ✅ CORS
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -57,7 +56,6 @@ export default async function handler(req, res) {
   }
 
   try {
-    // ✅ parse seguro (Vercel)
     const body =
       req.method === "POST"
         ? typeof req.body === "string"
@@ -93,7 +91,6 @@ export default async function handler(req, res) {
     }
 
     const clientName = report.client_name || "Cliente";
-
     const reportUrl = `${getAppUrl()}/report/${report.report_slug}`;
 
     console.log("🌐 URL do relatório:", reportUrl);
@@ -103,6 +100,8 @@ export default async function handler(req, res) {
 
     try {
       const buffer = await generatePdf(reportUrl);
+
+      console.log("📄 PDF gerado com sucesso");
 
       attachment = {
         filename: `relatorio-${formatFileName(clientName)}.pdf`,
