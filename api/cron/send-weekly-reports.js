@@ -15,23 +15,16 @@ function formatDate(date) {
 
 export default async function handler(req, res) {
   try {
-    console.log("🔥 CRON WEEKLY START");
-
     const clients = await sql`
-      SELECT id, name, report_slug, weekly_report_enabled
-      FROM clients
+      SELECT * FROM clients
+      WHERE weekly_report_enabled = true
     `;
-
-    console.log("👥 TODOS CLIENTES:", clients);
-
-    const activeClients = clients.filter(c => c.weekly_report_enabled === true);
-
-    console.log("✅ CLIENTES ATIVOS:", activeClients);
 
     let processed = 0;
 
-    for (const client of activeClients) {
+    for (const client of clients) {
       try {
+        // 📅 SEMANA COMPLETA ANTERIOR (segunda → domingo)
         const today = new Date();
 
         const lastMonday = new Date(today);
@@ -43,58 +36,52 @@ export default async function handler(req, res) {
         const startDate = formatDate(lastMonday);
         const endDate = formatDate(lastSunday);
 
-        console.log(`➡️ ${client.name} | ${startDate} → ${endDate}`);
+        console.log(`➡️ ${client.name}`);
+        console.log(`📅 ${startDate} até ${endDate}`);
 
+        // 🔥 1. GERAR RELATÓRIO
         const generateRes = await fetch(
           `${getBaseUrl()}/api/reports/generate-manual?slug=${client.report_slug}&startDate=${startDate}&endDate=${endDate}`
         );
 
         const generateData = await generateRes.json();
 
-        console.log("📊 GENERATE:", generateData);
-
-        if (!generateData.success) continue;
+        if (!generateData.success) {
+          console.error("❌ Erro ao gerar:", generateData);
+          continue;
+        }
 
         const reportId = generateData.reportId;
 
-       const emailRes = await fetch(`${getBaseUrl()}/api/send-email`, {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    to: client.email,
-    subject: `Relatório Google Ads - ${client.name}`,
-    html: `
-      <h2>Relatório de Performance</h2>
-      <p>Olá!</p>
-      <p>Segue o relatório referente ao período:</p>
-      <p><strong>${startDate} até ${endDate}</strong></p>
-      <p>
-        <a href="${getAppUrl()}/report/${client.report_slug}">
-          Acessar relatório
-        </a>
-      </p>
-      <br/>
-      <p>Bennedita Marketing Digital</p>
-    `,
-    reportId
-  }),
-});
+        console.log(`✅ Report ID: ${reportId}`);
+
+        // 📧 2. ENVIAR EMAIL (USANDO SEU ENDPOINT CORRETO)
+        const emailRes = await fetch(`${getBaseUrl()}/api/send-email`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            reportId, // 🔥 ÚNICO CAMPO NECESSÁRIO
+          }),
+        });
 
         const emailData = await emailRes.json();
 
-        console.log("📧 EMAIL:", emailData);
+        if (!emailRes.ok) {
+          console.error("❌ Email erro:", emailData);
+          continue;
+        }
 
-        if (!emailRes.ok) continue;
+        console.log("📧 Email enviado");
 
         processed++;
-      } catch (err) {
-        console.error("❌ ERRO CLIENTE:", err);
+      } catch (errClient) {
+        console.error(`❌ Cliente ${client.name}:`, errClient);
       }
     }
 
-    console.log("✅ FINAL:", processed);
+    console.log("FINAL:", processed);
 
     return res.json({
       success: true,
