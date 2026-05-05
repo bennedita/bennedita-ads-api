@@ -57,13 +57,30 @@ export default async function handler(req, res) {
 
         const reportId = generateData.reportId;
 
-        const emailRes = await fetch(`${getBaseUrl()}/api/send-email`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ reportId }),
-        });
+       const emailRes = await fetch(`${getBaseUrl()}/api/send-email`, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    to: client.email,
+    subject: `Relatório Google Ads - ${client.name}`,
+    html: `
+      <h2>Relatório de Performance</h2>
+      <p>Olá!</p>
+      <p>Segue o relatório referente ao período:</p>
+      <p><strong>${startDate} até ${endDate}</strong></p>
+      <p>
+        <a href="${getAppUrl()}/report/${client.report_slug}">
+          Acessar relatório
+        </a>
+      </p>
+      <br/>
+      <p>Bennedita Marketing Digital</p>
+    `,
+    reportId
+  }),
+});
 
         const emailData = await emailRes.json();
 
