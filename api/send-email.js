@@ -105,12 +105,12 @@ export default async function handler(req, res) {
 
       const base64Pdf = buffer.toString("base64");
 
-      attachments = [
-        {
-          filename: `relatorio-${formatFileName(clientName)}.pdf`,
-          path: `data:application/pdf;base64,${base64Pdf}`,
-        },
-      ];
+     attachments = [
+  {
+    filename: `relatorio-${formatFileName(clientName)}.pdf`,
+    content: base64Pdf,
+  },
+];
 
       console.log("📎 Attachment preparado");
     } catch (err) {
