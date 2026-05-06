@@ -19,11 +19,30 @@ async function generatePdf(reportUrl) {
         Buffer.from("api:" + process.env.PDFSHIFT_API_KEY).toString("base64"),
     },
     body: JSON.stringify({
-      source: reportUrl,
-      format: "A4",
-      landscape: true,
-      delay: 8000,
-    }),
+  source: reportUrl,
+
+  format: "A4",
+  landscape: false,
+
+  use_print: true,
+  print_background: true,
+
+  delay: 5000,
+
+  viewport: {
+    width: 1440,
+    height: 2200,
+  },
+
+  margin: {
+    top: "8mm",
+    right: "8mm",
+    bottom: "8mm",
+    left: "8mm",
+  },
+
+  scale: 1,
+}),
   });
 
   if (!response.ok) {
