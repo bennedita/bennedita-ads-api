@@ -18,24 +18,26 @@ async function generatePdf(reportUrl) {
         "Basic " +
         Buffer.from("api:" + process.env.PDFSHIFT_API_KEY).toString("base64"),
     },
+
     body: JSON.stringify({
-  source: `${reportUrl}?print=true`,
-  format: "A4",
-  landscape: false,
-  use_print: true,
-  print_background: true,
-  delay: 4000,
-}),
+      source: `${reportUrl}?print=true`,
+      format: "A4",
+      landscape: false,
 
-  margin: {
-    top: "8mm",
-    right: "8mm",
-    bottom: "8mm",
-    left: "8mm",
-  },
+      use_print: true,
+      print_background: true,
 
-  scale: 1,
-}),
+      delay: 4000,
+
+      margin: {
+        top: "8mm",
+        right: "8mm",
+        bottom: "8mm",
+        left: "8mm",
+      },
+
+      scale: 1,
+    }),
   });
 
   if (!response.ok) {
@@ -79,12 +81,18 @@ export default async function handler(req, res) {
     console.log("📩 reportId recebido:", reportId);
 
     if (!reportId) {
-      return res.status(400).json({ error: "Missing reportId" });
+      return res.status(400).json({
+        error: "Missing reportId",
+      });
     }
 
     // 🔥 BUSCA DADOS
     const rows = await sql`
-      SELECT r.*, c.email, c.name as client_name, c.report_slug
+      SELECT
+        r.*,
+        c.email,
+        c.name as client_name,
+        c.report_slug
       FROM reports r
       JOIN clients c ON r.client_id = c.id
       WHERE r.id = ${reportId}
@@ -94,14 +102,19 @@ export default async function handler(req, res) {
     const report = rows?.[0];
 
     if (!report) {
-      return res.status(404).json({ error: "Report not found" });
+      return res.status(404).json({
+        error: "Report not found",
+      });
     }
 
     if (!report.email) {
-      return res.status(400).json({ error: "Client without email" });
+      return res.status(400).json({
+        error: "Client without email",
+      });
     }
 
     const clientName = report.client_name || "Cliente";
+
     const reportUrl = `${getAppUrl()}/report/${report.report_slug}`;
 
     console.log("🌐 URL do relatório:", reportUrl);
@@ -111,22 +124,18 @@ export default async function handler(req, res) {
 
     try {
       const buffer = await generatePdf(reportUrl);
-console.log("PDF BUFFER SIZE:", buffer.length);
 
-console.log(
-  "PDF HEADER:",
-  buffer.toString("utf8", 0, 20)
-);
       console.log("📄 PDF gerado com sucesso");
+      console.log("PDF BUFFER SIZE:", buffer.length);
 
       const base64Pdf = buffer.toString("base64");
 
-     attachments = [
-  {
-    filename: `relatorio-${formatFileName(clientName)}.pdf`,
-    content: base64Pdf,
-  },
-];
+      attachments = [
+        {
+          filename: `relatorio-${formatFileName(clientName)}.pdf`,
+          content: base64Pdf,
+        },
+      ];
 
       console.log("📎 Attachment preparado");
     } catch (err) {
@@ -136,8 +145,11 @@ console.log(
     // 🔥 EMAIL
     const email = await resend.emails.send({
       from: "Relatórios Bennedita <relatorios@mail.bennedita.com.br>",
+
       to: report.email,
+
       subject: `Relatório Google Ads - ${clientName}`,
+
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
           <h2 style="color:#111;">Relatório de Performance</h2>
@@ -149,7 +161,8 @@ console.log(
           <p><strong>${report.period || "-"}</strong></p>
 
           <div style="margin: 30px 0;">
-            <a href="${reportUrl}"
+            <a
+              href="${reportUrl}"
               style="
                 background-color:#2563eb;
                 color:#fff;
@@ -158,7 +171,8 @@ console.log(
                 border-radius:8px;
                 font-weight:bold;
                 display:inline-block;
-              ">
+              "
+            >
               Acessar Relatório
             </a>
           </div>
@@ -173,6 +187,7 @@ console.log(
           </p>
         </div>
       `,
+
       attachments,
     });
 
