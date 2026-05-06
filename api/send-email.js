@@ -100,7 +100,12 @@ export default async function handler(req, res) {
 
     try {
       const buffer = await generatePdf(reportUrl);
+console.log("PDF BUFFER SIZE:", buffer.length);
 
+console.log(
+  "PDF HEADER:",
+  buffer.toString("utf8", 0, 20)
+);
       console.log("📄 PDF gerado com sucesso");
 
       const base64Pdf = buffer.toString("base64");
