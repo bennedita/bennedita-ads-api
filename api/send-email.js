@@ -20,25 +20,12 @@ async function generatePdf(reportUrl) {
     },
 
     body: JSON.stringify({
-      source: `${reportUrl}?print=true`,
-      format: "A4",
-      landscape: false,
-
-      use_print: true,
-      print_background: true,
-
-      delay: 4000,
-
-      margin: {
-        top: "8mm",
-        right: "8mm",
-        bottom: "8mm",
-        left: "8mm",
-      },
-
-      scale: 1,
-    }),
-  });
+  source: `${reportUrl}?print=true`,
+  format: "A4",
+  landscape: false,
+  use_print: true,
+  delay: 4000,
+}),
 
   if (!response.ok) {
     const errorText = await response.text();
