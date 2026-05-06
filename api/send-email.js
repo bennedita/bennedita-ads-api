@@ -111,9 +111,7 @@ export default async function handler(req, res) {
 
     const reportUrl =
   `${getAppUrl()}/report/${report.report_slug}` +
-  `?period=${encodeURIComponent(report.period || "LAST_7_DAYS")}` +
-  `&start_date=${report.start_date || ""}` +
-  `&end_date=${report.end_date || ""}`;
+  `?reportId=${report.id}`;
 
     console.log("🌐 URL do relatório:", reportUrl);
 
