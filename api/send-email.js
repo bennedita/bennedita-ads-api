@@ -103,10 +103,12 @@ export default async function handler(req, res) {
 
       console.log("📄 PDF gerado com sucesso");
 
+      const base64Pdf = buffer.toString("base64");
+
       attachments = [
         {
           filename: `relatorio-${formatFileName(clientName)}.pdf`,
-          content: buffer.toString("base64"),
+          path: `data:application/pdf;base64,${base64Pdf}`,
         },
       ];
 
