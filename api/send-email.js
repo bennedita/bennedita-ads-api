@@ -22,7 +22,6 @@ async function generatePdf(reportUrl) {
       source: reportUrl + "?print=true",
       format: "A4",
       landscape: true,
-      print_background: true,
       delay: 8000,
     }),
   });
