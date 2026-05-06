@@ -19,7 +19,7 @@ async function generatePdf(reportUrl) {
         Buffer.from("api:" + process.env.PDFSHIFT_API_KEY).toString("base64"),
     },
     body: JSON.stringify({
-      source: reportUrl + "?print=true",
+      source: reportUrl,
       format: "A4",
       landscape: true,
       delay: 8000,
