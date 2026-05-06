@@ -21,7 +21,7 @@ async function generatePdf(reportUrl) {
     body: JSON.stringify({
       source: reportUrl + "?print=true",
       format: "A4",
-      landscape: true, // ✅ mantém mais espaço horizontal
+      landscape: true,
       print_background: true,
       delay: 8000,
     }),
@@ -96,17 +96,21 @@ export default async function handler(req, res) {
     console.log("🌐 URL do relatório:", reportUrl);
 
     // 🔥 PDF
-    let attachment = null;
+    let attachments = [];
 
     try {
       const buffer = await generatePdf(reportUrl);
 
       console.log("📄 PDF gerado com sucesso");
 
-      attachment = {
-        filename: `relatorio-${formatFileName(clientName)}.pdf`,
-        content: buffer,
-      };
+      attachments = [
+        {
+          filename: `relatorio-${formatFileName(clientName)}.pdf`,
+          content: buffer.toString("base64"),
+        },
+      ];
+
+      console.log("📎 Attachment preparado");
     } catch (err) {
       console.error("❌ PDF ERROR:", err.message);
     }
@@ -151,7 +155,7 @@ export default async function handler(req, res) {
           </p>
         </div>
       `,
-      attachments: attachment ? [attachment] : [],
+      attachments,
     });
 
     console.log("✅ Email enviado:", email?.id);
