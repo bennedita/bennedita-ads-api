@@ -10,22 +10,29 @@ function getAppUrl() {
 
 // 🔥 PDF
 async function generatePdf(reportUrl) {
-  const response = await fetch("https://api.pdfshift.io/v3/convert/pdf", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization:
-        "Basic " +
-        Buffer.from("api:" + process.env.PDFSHIFT_API_KEY).toString("base64"),
-    },
+  const response = await fetch(
+    "https://api.pdfshift.io/v3/convert/pdf",
+    {
+      method: "POST",
 
-    body: JSON.stringify({
-  source: `${reportUrl}?print=true`,
-  format: "A4",
-  landscape: false,
-  use_print: true,
-  delay: 4000,
-}),
+      headers: {
+        "Content-Type": "application/json",
+        Authorization:
+          "Basic " +
+          Buffer.from(
+            "api:" + process.env.PDFSHIFT_API_KEY
+          ).toString("base64"),
+      },
+
+      body: JSON.stringify({
+        source: `${reportUrl}?print=true`,
+        format: "A4",
+        landscape: false,
+        use_print: true,
+        delay: 4000,
+      }),
+    }
+  );
 
   if (!response.ok) {
     const errorText = await response.text();
