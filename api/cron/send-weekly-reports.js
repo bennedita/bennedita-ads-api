@@ -17,7 +17,7 @@ export default async function handler(req, res) {
   try {
     const clients = await sql`
   SELECT * FROM clients
-  WHERE report_slug = 'vinicius-faria---cantor'
+  WHERE weekly_report_enabled = true
 `;
 
     let processed = 0;
