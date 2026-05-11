@@ -22,7 +22,7 @@
   "crons": [
     {
       "path": "/api/cron/send-monthly-reports",
-      "schedule": "10 20 11 5 *"
+      "schedule": "20 20 11 5 *"
     },
     {
       "path": "/api/cron/send-weekly-reports",
