@@ -3,19 +3,30 @@
     {
       "source": "/api/(.*)",
       "headers": [
-        { "key": "Access-Control-Allow-Origin", "value": "*" },
-        { "key": "Access-Control-Allow-Methods", "value": "GET,POST,PATCH,OPTIONS" },
-        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization" }
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET,POST,PATCH,OPTIONS"
+        },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "Content-Type, Authorization"
+        }
       ]
     }
   ],
- "crons": [
-  {
-    "path": "/api/cron/send-monthly-reports",
-    "schedule": "10 20 11 5 *"
-  },
-  {
-    "path": "/api/cron/send-weekly-reports",
-    "schedule": "0 12 * * 1"
-  }
-]
+
+  "crons": [
+    {
+      "path": "/api/cron/send-monthly-reports",
+      "schedule": "10 20 11 5 *"
+    },
+    {
+      "path": "/api/cron/send-weekly-reports",
+      "schedule": "0 12 * * 1"
+    }
+  ]
+}
