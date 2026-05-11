@@ -110,7 +110,7 @@ export default async function handler(req, res) {
     const clientName = report.client_name || "Cliente";
 
     const reportUrl =
-  `${getAppUrl()}/report/${report.report_slug}` +
+  `${getAppUrl()}/report-pdf/${report.report_slug}` +
   `?reportId=${report.id}`;
 
     console.log("🌐 URL do relatório:", reportUrl);
