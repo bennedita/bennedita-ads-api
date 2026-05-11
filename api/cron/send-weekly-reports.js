@@ -16,9 +16,9 @@ function formatDate(date) {
 export default async function handler(req, res) {
   try {
     const clients = await sql`
-      SELECT * FROM clients
-      WHERE weekly_report_enabled = true
-    `;
+  SELECT * FROM clients
+  WHERE report_slug = 'vinicius-faria---cantor'
+`;
 
     let processed = 0;
 
