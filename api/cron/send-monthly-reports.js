@@ -3,25 +3,31 @@ import { neon } from "@neondatabase/serverless";
 const sql = neon(process.env.POSTGRES_URL);
 
 function getBaseUrl() {
+  if (!process.env.BASE_URL) {
+    throw new Error("BASE_URL não definida");
+  }
+
   return process.env.BASE_URL;
 }
 
-function getAppUrl() {
-  return "https://lead-report-peek.lovable.app";
+function formatDate(date) {
+  return date.toISOString().split("T")[0];
 }
 
 export default async function handler(req, res) {
   try {
-   const clients = await sql`
-  SELECT * FROM clients
-  WHERE monthly_report_enabled = true
-`;
+    // 🔥 usando coluna que EXISTE no banco
+    const clients = await sql`
+      SELECT *
+      FROM clients
+      WHERE weekly_report_enabled = true
+    `;
 
     let processed = 0;
 
     for (const client of clients) {
       try {
-        // 📅 período do mês anterior
+        // 📅 MÊS ANTERIOR COMPLETO
         const today = new Date();
 
         const firstDayLastMonth = new Date(
@@ -36,51 +42,69 @@ export default async function handler(req, res) {
           0
         );
 
-        const startDate = firstDayLastMonth.toISOString().split("T")[0];
-        const endDate = lastDayLastMonth.toISOString().split("T")[0];
+        const startDate = formatDate(firstDayLastMonth);
+        const endDate = formatDate(lastDayLastMonth);
 
-        console.log(`Gerando relatório mensal: ${client.name}`);
+        console.log(`➡️ ${client.name}`);
+        console.log(`📅 ${startDate} até ${endDate}`);
 
-        // 1. gerar relatório
+        // 🔥 1. GERAR RELATÓRIO
         const generateRes = await fetch(
           `${getBaseUrl()}/api/reports/generate-manual?slug=${client.report_slug}&startDate=${startDate}&endDate=${endDate}`
         );
 
         const generateData = await generateRes.json();
-console.log("GENERATE DATA:", generateData);
+
+        console.log("GENERATE DATA:", generateData);
+
         if (!generateData.success) {
-          console.error("Erro ao gerar relatório:", generateData);
+          console.error("❌ Erro ao gerar relatório:", generateData);
           continue;
         }
 
         const reportId = generateData.reportId;
 
-        // 2. enviar email
-  const emailRes = await fetch(`${getBaseUrl()}/api/send-email`, {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    reportId
-  }),
-});
+        console.log(`✅ Report ID: ${reportId}`);
+
+        // 🔥 2. ENVIAR EMAIL
+        const emailRes = await fetch(
+          `${getBaseUrl()}/api/send-email`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              reportId,
+            }),
+          }
+        );
 
         const emailData = await emailRes.json();
-        console.log("Email enviado:", emailData);
+
+        console.log("📧 EMAIL DATA:", emailData);
+
+        if (!emailRes.ok) {
+          console.error("❌ Erro no email:", emailData);
+          continue;
+        }
+
+        console.log("✅ Email enviado");
 
         processed++;
-      } catch (err) {
-        console.error("Erro no cliente:", client.name, err);
+      } catch (errClient) {
+        console.error(`❌ Cliente ${client.name}:`, errClient);
       }
     }
+
+    console.log("FINAL:", processed);
 
     return res.json({
       success: true,
       processed,
     });
   } catch (err) {
-    console.error("CRON MENSAL ERROR:", err);
+    console.error("🔥 CRON MENSAL ERROR:", err);
 
     return res.status(500).json({
       error: err.message,
