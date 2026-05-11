@@ -18,10 +18,10 @@ export default async function handler(req, res) {
   try {
     // 🔥 usando coluna que EXISTE no banco
     const clients = await sql`
-      SELECT *
-      FROM clients
-      WHERE weekly_report_enabled = true
-    `;
+  SELECT *
+  FROM clients
+  WHERE active = true
+`;
 
     let processed = 0;
 
