@@ -25,7 +25,7 @@ async function generatePdf(reportUrl) {
       },
 
       body: JSON.stringify({
-        source: `${reportUrl}?print=true`,
+        source: `${reportUrl}&print=true`,
         format: "A4",
         landscape: false,
         use_print: true,
