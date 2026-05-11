@@ -6,20 +6,20 @@ export default async function handler(req, res) {
   try {
     const { id } = req.query;
 
-    // 🔥 NOVO: aceitar slug também
+    // 🔥 buscar snapshot exato pelo UUID
     const rows = await sql`
-      SELECT r.*
-      FROM reports r
-      JOIN clients c ON r.client_id = c.id
-      WHERE c.report_slug = ${id}
-      ORDER BY r.created_at DESC
+      SELECT *
+      FROM reports
+      WHERE id = ${id}
       LIMIT 1
     `;
 
     const report = rows?.[0];
 
     if (!report) {
-      return res.status(404).json({ error: "Report not found" });
+      return res.status(404).json({
+        error: `Relatório ${id} não encontrado`,
+      });
     }
 
     return res.json(report);
