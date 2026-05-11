@@ -144,6 +144,10 @@ export default async function handler(req, res) {
 
       to: report.email,
 
+bcc: [
+  "agenciabennedita@gmail.com",
+],
+
       subject: `Relatório Google Ads - ${clientName}`,
 
       html: `
