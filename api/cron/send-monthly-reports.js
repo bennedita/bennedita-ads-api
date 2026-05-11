@@ -47,7 +47,7 @@ export default async function handler(req, res) {
         );
 
         const generateData = await generateRes.json();
-
+console.log("GENERATE DATA:", generateData);
         if (!generateData.success) {
           console.error("Erro ao gerar relatório:", generateData);
           continue;
