@@ -46,22 +46,23 @@ export default async function handler(req, res) {
         const startDate = formatDate(firstDayLastMonth);
         const endDate = formatDate(lastDayLastMonth);
 
-        const period = `${startDate} até ${endDate}`;
+        const period = `${startDate}_${endDate}`;
 
         console.log(`➡️ ${client.name}`);
         console.log(`📅 ${period}`);
 
-        // 🔒 EVITA DUPLICIDADE
-        const existing = await sql`
+        // 🔒 BLOQUEIA REENVIO
+        const existingLog = await sql`
           SELECT id
-          FROM reports
-          WHERE client_id = ${client.id}
-          AND period = ${period}
+          FROM report_logs
+          WHERE client_slug = ${client.report_slug}
+            AND period = ${period}
+            AND report_type = 'monthly'
           LIMIT 1
         `;
 
-        if (existing.length > 0) {
-          console.log(`⏭️ Relatório já existe para ${client.name}`);
+        if (existingLog.length > 0) {
+          console.log(`⏭️ Relatório já enviado para ${client.name}`);
           continue;
         }
 
@@ -79,6 +80,30 @@ export default async function handler(req, res) {
             `❌ Erro ao gerar relatório para ${client.name}:`,
             generateData
           );
+
+          await sql`
+            INSERT INTO report_logs (
+              report_id,
+              email,
+              client_slug,
+              period,
+              report_type,
+              status,
+              error_message,
+              execution_source
+            )
+            VALUES (
+              null,
+              ${client.email},
+              ${client.report_slug},
+              ${period},
+              'monthly',
+              'error',
+              ${JSON.stringify(generateData)},
+              'cron'
+            )
+          `;
+
           continue;
         }
 
@@ -109,8 +134,54 @@ export default async function handler(req, res) {
             `❌ Erro no email para ${client.name}:`,
             emailData
           );
+
+          await sql`
+            INSERT INTO report_logs (
+              report_id,
+              email,
+              client_slug,
+              period,
+              report_type,
+              status,
+              error_message,
+              execution_source
+            )
+            VALUES (
+              ${reportId},
+              ${client.email},
+              ${client.report_slug},
+              ${period},
+              'monthly',
+              'error',
+              ${JSON.stringify(emailData)},
+              'cron'
+            )
+          `;
+
           continue;
         }
+
+        // ✅ LOG DE SUCESSO
+        await sql`
+          INSERT INTO report_logs (
+            report_id,
+            email,
+            client_slug,
+            period,
+            report_type,
+            status,
+            execution_source
+          )
+          VALUES (
+            ${reportId},
+            ${client.email},
+            ${client.report_slug},
+            ${period},
+            'monthly',
+            'sent',
+            'cron'
+          )
+        `;
 
         console.log(`✅ Email enviado para ${client.name}`);
 
