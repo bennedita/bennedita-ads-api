@@ -16,12 +16,13 @@ function formatDate(date) {
 
 export default async function handler(req, res) {
   try {
-    // 🔥 usando coluna que EXISTE no banco
+    // 🔥 somente clientes ativos + mensal habilitado
     const clients = await sql`
-  SELECT *
-  FROM clients
-  WHERE active = true
-`;
+      SELECT *
+      FROM clients
+      WHERE active = true
+      AND monthly_report_enabled = true
+    `;
 
     let processed = 0;
 
@@ -45,8 +46,24 @@ export default async function handler(req, res) {
         const startDate = formatDate(firstDayLastMonth);
         const endDate = formatDate(lastDayLastMonth);
 
+        const period = `${startDate} até ${endDate}`;
+
         console.log(`➡️ ${client.name}`);
-        console.log(`📅 ${startDate} até ${endDate}`);
+        console.log(`📅 ${period}`);
+
+        // 🔒 EVITA DUPLICIDADE
+        const existing = await sql`
+          SELECT id
+          FROM reports
+          WHERE client_id = ${client.id}
+          AND period = ${period}
+          LIMIT 1
+        `;
+
+        if (existing.length > 0) {
+          console.log(`⏭️ Relatório já existe para ${client.name}`);
+          continue;
+        }
 
         // 🔥 1. GERAR RELATÓRIO
         const generateRes = await fetch(
@@ -57,8 +74,11 @@ export default async function handler(req, res) {
 
         console.log("GENERATE DATA:", generateData);
 
-        if (!generateData.success) {
-          console.error("❌ Erro ao gerar relatório:", generateData);
+        if (!generateRes.ok || !generateData.success) {
+          console.error(
+            `❌ Erro ao gerar relatório para ${client.name}:`,
+            generateData
+          );
           continue;
         }
 
@@ -85,11 +105,14 @@ export default async function handler(req, res) {
         console.log("📧 EMAIL DATA:", emailData);
 
         if (!emailRes.ok) {
-          console.error("❌ Erro no email:", emailData);
+          console.error(
+            `❌ Erro no email para ${client.name}:`,
+            emailData
+          );
           continue;
         }
 
-        console.log("✅ Email enviado");
+        console.log(`✅ Email enviado para ${client.name}`);
 
         processed++;
       } catch (errClient) {
