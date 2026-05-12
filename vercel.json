@@ -20,13 +20,13 @@
   ],
 
   "crons": [
-    {
-      "path": "/api/cron/send-monthly-reports",
-      "schedule": "35 20 11 5 *"
-    },
-    {
-      "path": "/api/cron/send-weekly-reports",
-      "schedule": "0 12 * * 1"
-    }
-  ]
+  {
+    "path": "/api/cron/send-monthly-reports",
+    "schedule": "0 12 1 * *"
+  },
+  {
+    "path": "/api/cron/send-weekly-reports",
+    "schedule": "0 12 * * 1"
+  }
+]
 }
