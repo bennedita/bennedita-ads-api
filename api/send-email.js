@@ -142,7 +142,10 @@ export default async function handler(req, res) {
     const email = await resend.emails.send({
       from: "Relatórios Bennedita <relatorios@mail.bennedita.com.br>",
 
-      to: report.email,
+      to: report.email
+  .split(",")
+  .map(email => email.trim())
+  .filter(Boolean),
 
 bcc: [
   "agenciabennedita@gmail.com",
