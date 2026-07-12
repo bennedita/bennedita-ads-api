@@ -117,31 +117,48 @@ export default async function handler(req, res) {
     // =========================================================
 
     const accountRows = await sql`
-      SELECT
-        aa.id,
-        aa.client_id,
-        aa.platform,
-        aa.account_id,
-        aa.account_name,
-        aa.active,
-        c.name AS client_name
-      FROM ad_accounts aa
-      JOIN clients c
-        ON c.id = aa.client_id
-      WHERE aa.client_id = ${clientId}::uuid
-        AND LOWER(aa.platform) = 'meta'
-      ORDER BY aa.account_name ASC NULLS LAST
-      LIMIT 1
-    `;
+  SELECT
+    aa.id,
+    aa.client_id,
+    aa.platform,
+    aa.account_id,
+    aa.account_name,
+    aa.active
+  FROM ad_accounts aa
+  WHERE aa.client_id = ${clientId}::uuid
+  ORDER BY aa.account_name ASC NULLS LAST
+`;
 
-    if (!accountRows || accountRows.length === 0) {
-      return json(res, 404, {
-        success: false,
-        error: "Active Meta Ads account not found for this client",
-      });
-    }
+if (!accountRows || accountRows.length === 0) {
+  return json(res, 404, {
+    success: false,
+    error: "No ad_accounts rows found for this client",
+    debug: {
+      client_id_received: clientId,
+    },
+  });
+}
 
-    const account = accountRows[0];
+const metaAccount = accountRows.find(
+  (item) =>
+    String(item.platform || "").trim().toLowerCase() === "meta"
+);
+
+if (!metaAccount) {
+  return json(res, 404, {
+    success: false,
+    error: "No Meta account found among this client's ad accounts",
+    debug: {
+      client_id_received: clientId,
+      accounts_found: accountRows,
+    },
+  });
+}
+
+const account = {
+  ...metaAccount,
+  client_name: "",
+};
 
     const cleanAccountId = String(
       account.account_id || ""
