@@ -130,7 +130,6 @@ export default async function handler(req, res) {
         ON c.id = aa.client_id
       WHERE aa.client_id = ${clientId}::uuid
         AND LOWER(aa.platform) = 'meta'
-        AND aa.active = true
       ORDER BY aa.account_name ASC NULLS LAST
       LIMIT 1
     `;
