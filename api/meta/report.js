@@ -116,7 +116,7 @@ export default async function handler(req, res) {
     // 2. BUSCAR CONTA META NO NEON
     // =========================================================
 
-    const accountRows = await sql`
+const accountRows = await sql`
   SELECT
     aa.id,
     aa.client_id,
@@ -125,24 +125,17 @@ export default async function handler(req, res) {
     aa.account_name,
     aa.active
   FROM ad_accounts aa
-  WHERE aa.client_id = ${clientId}::uuid
   ORDER BY aa.account_name ASC NULLS LAST
 `;
 
-if (!accountRows || accountRows.length === 0) {
-  return json(res, 404, {
-    success: false,
-    error: "No ad_accounts rows found for this client",
-    debug: {
-      client_id_received: clientId,
-    },
-  });
-}
-
-const metaAccount = accountRows.find(
-  (item) =>
-    String(item.platform || "").trim().toLowerCase() === "meta"
-);
+return json(res, 200, {
+  success: true,
+  debug: {
+    client_id_received: clientId,
+    total_accounts: accountRows.length,
+    accounts_found: accountRows,
+  },
+});
 
 if (!metaAccount) {
   return json(res, 404, {
