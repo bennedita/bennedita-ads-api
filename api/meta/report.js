@@ -123,19 +123,26 @@ const accountRows = await sql`
     aa.platform,
     aa.account_id,
     aa.account_name,
-    aa.active
+    aa.active,
+    c.name AS client_name
   FROM ad_accounts aa
+  JOIN clients c
+    ON c.id = aa.client_id
+  WHERE aa.client_id = ${clientId}::uuid
+    AND LOWER(aa.platform) = 'meta'
+    AND aa.active = true
   ORDER BY aa.account_name ASC NULLS LAST
+  LIMIT 1
 `;
 
-return json(res, 200, {
-  success: true,
-  debug: {
-    client_id_received: clientId,
-    total_accounts: accountRows.length,
-    accounts_found: accountRows,
-  },
-});
+if (!accountRows || accountRows.length === 0) {
+  return json(res, 404, {
+    success: false,
+    error: "Active Meta Ads account not found for this client",
+  });
+}
+
+const account = accountRows[0];
 
 if (!metaAccount) {
   return json(res, 404, {
