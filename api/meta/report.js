@@ -155,11 +155,6 @@ if (!metaAccount) {
   });
 }
 
-const account = {
-  ...metaAccount,
-  client_name: "",
-};
-
     const cleanAccountId = String(
       account.account_id || ""
     ).replace(/\D/g, "");
