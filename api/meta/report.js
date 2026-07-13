@@ -118,21 +118,17 @@ export default async function handler(req, res) {
 
 const accountRows = await sql`
   SELECT
-    aa.id,
-    aa.client_id,
-    aa.platform,
-    aa.account_id,
-    aa.account_name,
-    aa.active,
-    c.name AS client_name
-  FROM ad_accounts aa
-  JOIN clients c
-    ON c.id = aa.client_id
-  WHERE aa.client_id = ${clientId}::uuid
-    AND LOWER(aa.platform) = 'meta'
-    AND aa.active = true
-  ORDER BY aa.account_name ASC NULLS LAST
-  LIMIT 1
+  aa.id,
+  aa.client_id,
+  aa.platform,
+  aa.account_id,
+  aa.account_name,
+  aa.active
+FROM ad_accounts aa
+WHERE aa.client_id = ${clientId}::uuid
+  AND LOWER(aa.platform) = 'meta'
+  AND aa.active = true
+LIMIT 1
 `;
 
 if (!accountRows || accountRows.length === 0) {
