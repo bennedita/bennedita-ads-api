@@ -17,6 +17,11 @@ function isValidUuid(value) {
   );
 }
 
+function toNumber(value) {
+  const number = Number(value || 0);
+  return Number.isFinite(number) ? number : 0;
+}
+
 function getActionValue(actions, acceptedTypes) {
   if (!Array.isArray(actions)) {
     return 0;
@@ -28,7 +33,7 @@ function getActionValue(actions, acceptedTypes) {
     );
 
     if (action) {
-      return Number(action.value || 0);
+      return toNumber(action.value);
     }
   }
 
@@ -39,7 +44,10 @@ export default async function handler(req, res) {
   const method = req.method || "GET";
   const url = getUrl(req);
 
+  // =========================================================
   // CORS
+  // =========================================================
+
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader(
     "Access-Control-Allow-Methods",
@@ -51,7 +59,8 @@ export default async function handler(req, res) {
   );
 
   if (method === "OPTIONS") {
-    return res.status(204).end();
+    res.statusCode = 204;
+    return res.end();
   }
 
   if (method !== "GET") {
@@ -63,14 +72,16 @@ export default async function handler(req, res) {
 
   try {
     // =========================================================
-    // 1. RECEBER CLIENT_ID
+    // 1. RECEBER E VALIDAR PARÂMETROS
     // =========================================================
 
-    const clientId =
-      url.searchParams.get("client_id") || "";
+    const clientId = String(
+      url.searchParams.get("client_id") || ""
+    ).trim();
 
-    const datePreset =
-      url.searchParams.get("date_preset") || "last_30d";
+    const datePreset = String(
+      url.searchParams.get("date_preset") || "last_30d"
+    ).trim();
 
     if (!clientId) {
       return json(res, 400, {
@@ -86,7 +97,6 @@ export default async function handler(req, res) {
       });
     }
 
-    // Evita enviar valores inesperados para a API da Meta.
     const allowedDatePresets = [
       "today",
       "yesterday",
@@ -116,40 +126,39 @@ export default async function handler(req, res) {
     // 2. BUSCAR CONTA META NO NEON
     // =========================================================
 
-const accountRows = await sql`
-  SELECT
-  aa.id,
-  aa.client_id,
-  aa.platform,
-  aa.account_id,
-  aa.account_name,
-  aa.active
-FROM ad_accounts aa
-WHERE aa.client_id = ${clientId}::uuid
-  AND LOWER(aa.platform) = 'meta'
-  AND aa.active = true
-LIMIT 1
-`;
+    /*
+      LEFT JOIN:
+      permite encontrar a conta em ad_accounts mesmo se houver
+      alguma inconsistência temporária no vínculo com clients.
+    */
+    const accountRows = await sql`
+      SELECT
+        aa.id,
+        aa.client_id,
+        aa.platform,
+        aa.account_id,
+        aa.account_name,
+        aa.active,
+        c.name AS client_name
+      FROM ad_accounts aa
+      LEFT JOIN clients c
+        ON c.id = aa.client_id
+      WHERE aa.client_id = ${clientId}::uuid
+        AND LOWER(TRIM(aa.platform)) = 'meta'
+        AND aa.active = true
+      ORDER BY aa.account_name ASC NULLS LAST
+      LIMIT 1
+    `;
 
-if (!accountRows || accountRows.length === 0) {
-  return json(res, 404, {
-    success: false,
-    error: "Active Meta Ads account not found for this client",
-  });
-}
+    if (!accountRows || accountRows.length === 0) {
+      return json(res, 404, {
+        success: false,
+        error: "Active Meta Ads account not found for this client",
+        client_id: clientId,
+      });
+    }
 
-const account = accountRows[0];
-
-if (!metaAccount) {
-  return json(res, 404, {
-    success: false,
-    error: "No Meta account found among this client's ad accounts",
-    debug: {
-      client_id_received: clientId,
-      accounts_found: accountRows,
-    },
-  });
-}
+    const account = accountRows[0];
 
     const cleanAccountId = String(
       account.account_id || ""
@@ -168,10 +177,13 @@ if (!metaAccount) {
     // 3. VALIDAR VARIÁVEIS DA VERCEL
     // =========================================================
 
-    const accessToken = process.env.META_ACCESS_TOKEN;
+    const accessToken = String(
+      process.env.META_ACCESS_TOKEN || ""
+    ).trim();
 
-    const apiVersion =
-      process.env.META_API_VERSION || "v25.0";
+    const apiVersion = String(
+      process.env.META_API_VERSION || "v25.0"
+    ).trim();
 
     if (!accessToken) {
       return json(res, 500, {
@@ -209,7 +221,29 @@ if (!metaAccount) {
       `https://graph.facebook.com/${apiVersion}` +
       `/${metaAccountId}/insights?${params.toString()}`;
 
-    const metaResponse = await fetch(metaApiUrl);
+    let metaResponse;
+
+    try {
+      metaResponse = await fetch(metaApiUrl, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+        },
+        signal: AbortSignal.timeout(20000),
+      });
+    } catch (fetchError) {
+      const isTimeout =
+        fetchError?.name === "TimeoutError" ||
+        fetchError?.name === "AbortError";
+
+      return json(res, 502, {
+        success: false,
+        error: isTimeout
+          ? "Meta Ads API request timed out"
+          : "Could not connect to Meta Ads API",
+        details: fetchError?.message || String(fetchError),
+      });
+    }
 
     let metaResult;
 
@@ -219,14 +253,16 @@ if (!metaAccount) {
       return json(res, 502, {
         success: false,
         error: "Invalid response received from Meta Ads API",
+        http_status: metaResponse.status,
       });
     }
 
-    if (!metaResponse.ok || metaResult.error) {
+    if (!metaResponse.ok || metaResult?.error) {
       return json(res, metaResponse.status || 502, {
         success: false,
         error: "Meta Ads request failed",
-        details: metaResult.error || metaResult,
+        account_id: metaAccountId,
+        details: metaResult?.error || metaResult,
       });
     }
 
@@ -234,15 +270,14 @@ if (!metaAccount) {
     // 5. NORMALIZAR MÉTRICAS
     // =========================================================
 
-    const insight = metaResult.data?.[0] || {};
+    const insight = metaResult?.data?.[0] || {};
 
-    const spend = Number(insight.spend || 0);
-    const impressions = Number(insight.impressions || 0);
-    const reach = Number(insight.reach || 0);
-    const clicks = Number(insight.clicks || 0);
-
-    const linkClicks = Number(
-      insight.inline_link_clicks || 0
+    const spend = toNumber(insight.spend);
+    const impressions = toNumber(insight.impressions);
+    const reach = toNumber(insight.reach);
+    const clicks = toNumber(insight.clicks);
+    const linkClicks = toNumber(
+      insight.inline_link_clicks
     );
 
     const actions = Array.isArray(insight.actions)
@@ -250,8 +285,9 @@ if (!metaAccount) {
       : [];
 
     /*
-      Usamos prioridade, e não soma, porque alguns tipos de ação
-      podem representar a mesma conversão em classificações diferentes.
+      Prioridade para conversões classificadas como lead.
+      Não somamos todos os tipos porque alguns podem representar
+      a mesma conversão em classificações diferentes.
     */
     const leads = getActionValue(actions, [
       "lead",
@@ -270,21 +306,21 @@ if (!metaAccount) {
 
     const ctr =
       insight.ctr !== undefined
-        ? Number(insight.ctr || 0)
+        ? toNumber(insight.ctr)
         : impressions > 0
           ? (clicks / impressions) * 100
           : 0;
 
     const cpm =
       insight.cpm !== undefined
-        ? Number(insight.cpm || 0)
+        ? toNumber(insight.cpm)
         : impressions > 0
           ? (spend / impressions) * 1000
           : 0;
 
     const cpc =
       insight.cpc !== undefined
-        ? Number(insight.cpc || 0)
+        ? toNumber(insight.cpc)
         : clicks > 0
           ? spend / clicks
           : 0;
