@@ -70,11 +70,12 @@ async function requestMetaInsights({
   fields,
   datePreset,
   timeIncrement,
+  level = "account",
 }) {
   const params = new URLSearchParams({
     fields,
     date_preset: datePreset,
-    level: "account",
+    level,
     limit: "500",
     access_token: accessToken,
   });
@@ -316,25 +317,45 @@ export default async function handler(req, res) {
       "date_stop",
     ].join(",");
 
-    const [summaryResult, dailyResult] =
-      await Promise.all([
-        requestMetaInsights({
-          apiVersion,
-          metaAccountId,
-          accessToken,
-          fields,
-          datePreset,
-        }),
+    const [summaryResult, dailyResult, campaignResult] =
+  await Promise.all([
+    requestMetaInsights({
+      apiVersion,
+      metaAccountId,
+      accessToken,
+      fields,
+      datePreset,
+    }),
 
-        requestMetaInsights({
-          apiVersion,
-          metaAccountId,
-          accessToken,
-          fields,
-          datePreset,
-          timeIncrement: 1,
-        }),
-      ]);
+    requestMetaInsights({
+      apiVersion,
+      metaAccountId,
+      accessToken,
+      fields,
+      datePreset,
+      timeIncrement: 1,
+    }),
+
+    requestMetaInsights({
+      apiVersion,
+      metaAccountId,
+      accessToken,
+      fields: [
+        "campaign_id",
+        "campaign_name",
+        "spend",
+        "impressions",
+        "clicks",
+        "inline_link_clicks",
+        "ctr",
+        "cpm",
+        "cpc",
+        "actions",
+      ].join(","),
+      datePreset,
+      level: "campaign",
+    }),
+  ]);
 
     // =========================================================
     // 5. NORMALIZAR RESUMO
