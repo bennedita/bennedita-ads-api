@@ -13,7 +13,7 @@ function getUrl(req) {
 
 function isValidUuid(value) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-    String(value || "")
+    String(value || ""),
   );
 }
 
@@ -29,7 +29,7 @@ function getActionValue(actions, acceptedTypes) {
 
   for (const actionType of acceptedTypes) {
     const action = actions.find(
-      (item) => item?.action_type === actionType
+      (item) => item?.action_type === actionType,
     );
 
     if (action) {
@@ -38,6 +38,112 @@ function getActionValue(actions, acceptedTypes) {
   }
 
   return 0;
+}
+
+function getConversions(actions) {
+  const leads = getActionValue(actions, [
+    "lead",
+    "onsite_conversion.lead_grouped",
+    "onsite_conversion.lead",
+    "offsite_conversion.fb_pixel_lead",
+  ]);
+
+  const messagingConversations = getActionValue(actions, [
+    "onsite_conversion.messaging_conversation_started_7d",
+    "messaging_conversation_started_7d",
+  ]);
+
+  return {
+    leads,
+    messagingConversations,
+    conversions:
+      leads > 0
+        ? leads
+        : messagingConversations,
+  };
+}
+
+async function requestMetaInsights({
+  apiVersion,
+  metaAccountId,
+  accessToken,
+  fields,
+  datePreset,
+  timeIncrement,
+}) {
+  const params = new URLSearchParams({
+    fields,
+    date_preset: datePreset,
+    level: "account",
+    limit: "500",
+    access_token: accessToken,
+  });
+
+  if (timeIncrement) {
+    params.set("time_increment", String(timeIncrement));
+  }
+
+  const metaApiUrl =
+    `https://graph.facebook.com/${apiVersion}` +
+    `/${metaAccountId}/insights?${params.toString()}`;
+
+  let response;
+
+  try {
+    response = await fetch(metaApiUrl, {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+      },
+      signal: AbortSignal.timeout(20000),
+    });
+  } catch (fetchError) {
+    const isTimeout =
+      fetchError?.name === "TimeoutError" ||
+      fetchError?.name === "AbortError";
+
+    const error = new Error(
+      isTimeout
+        ? "Meta Ads API request timed out"
+        : "Could not connect to Meta Ads API",
+    );
+
+    error.status = 502;
+    error.details =
+      fetchError?.message || String(fetchError);
+
+    throw error;
+  }
+
+  let result;
+
+  try {
+    result = await response.json();
+  } catch {
+    const error = new Error(
+      "Invalid response received from Meta Ads API",
+    );
+
+    error.status = 502;
+    error.details = {
+      http_status: response.status,
+    };
+
+    throw error;
+  }
+
+  if (!response.ok || result?.error) {
+    const error = new Error(
+      "Meta Ads request failed",
+    );
+
+    error.status = response.status || 502;
+    error.details = result?.error || result;
+
+    throw error;
+  }
+
+  return result;
 }
 
 export default async function handler(req, res) {
@@ -51,11 +157,11 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader(
     "Access-Control-Allow-Methods",
-    "GET,OPTIONS"
+    "GET,OPTIONS",
   );
   res.setHeader(
     "Access-Control-Allow-Headers",
-    "Content-Type, x-internal-api-key"
+    "Content-Type, x-internal-api-key",
   );
 
   if (method === "OPTIONS") {
@@ -76,11 +182,12 @@ export default async function handler(req, res) {
     // =========================================================
 
     const clientId = String(
-      url.searchParams.get("client_id") || ""
+      url.searchParams.get("client_id") || "",
     ).trim();
 
     const datePreset = String(
-      url.searchParams.get("date_preset") || "last_30d"
+      url.searchParams.get("date_preset") ||
+        "last_30d",
     ).trim();
 
     if (!clientId) {
@@ -126,11 +233,6 @@ export default async function handler(req, res) {
     // 2. BUSCAR CONTA META NO NEON
     // =========================================================
 
-    /*
-      LEFT JOIN:
-      permite encontrar a conta em ad_accounts mesmo se houver
-      alguma inconsistência temporária no vínculo com clients.
-    */
     const accountRows = await sql`
       SELECT
         aa.id,
@@ -153,7 +255,8 @@ export default async function handler(req, res) {
     if (!accountRows || accountRows.length === 0) {
       return json(res, 404, {
         success: false,
-        error: "Active Meta Ads account not found for this client",
+        error:
+          "Active Meta Ads account not found for this client",
         client_id: clientId,
       });
     }
@@ -161,39 +264,42 @@ export default async function handler(req, res) {
     const account = accountRows[0];
 
     const cleanAccountId = String(
-      account.account_id || ""
+      account.account_id || "",
     ).replace(/\D/g, "");
 
     if (!cleanAccountId) {
       return json(res, 500, {
         success: false,
-        error: "Invalid Meta account_id stored in ad_accounts",
+        error:
+          "Invalid Meta account_id stored in ad_accounts",
       });
     }
 
-    const metaAccountId = `act_${cleanAccountId}`;
+    const metaAccountId =
+      `act_${cleanAccountId}`;
 
     // =========================================================
     // 3. VALIDAR VARIÁVEIS DA VERCEL
     // =========================================================
 
     const accessToken = String(
-      process.env.META_ACCESS_TOKEN || ""
+      process.env.META_ACCESS_TOKEN || "",
     ).trim();
 
     const apiVersion = String(
-      process.env.META_API_VERSION || "v25.0"
+      process.env.META_API_VERSION || "v25.0",
     ).trim();
 
     if (!accessToken) {
       return json(res, 500, {
         success: false,
-        error: "META_ACCESS_TOKEN is not configured",
+        error:
+          "META_ACCESS_TOKEN is not configured",
       });
     }
 
     // =========================================================
-    // 4. CONSULTAR META MARKETING API
+    // 4. CONSULTAR RESUMO E EVOLUÇÃO DIÁRIA
     // =========================================================
 
     const fields = [
@@ -210,99 +316,55 @@ export default async function handler(req, res) {
       "date_stop",
     ].join(",");
 
-    const params = new URLSearchParams({
-      fields,
-      date_preset: datePreset,
-      level: "account",
-      access_token: accessToken,
-    });
+    const [summaryResult, dailyResult] =
+      await Promise.all([
+        requestMetaInsights({
+          apiVersion,
+          metaAccountId,
+          accessToken,
+          fields,
+          datePreset,
+        }),
 
-    const metaApiUrl =
-      `https://graph.facebook.com/${apiVersion}` +
-      `/${metaAccountId}/insights?${params.toString()}`;
-
-    let metaResponse;
-
-    try {
-      metaResponse = await fetch(metaApiUrl, {
-        method: "GET",
-        headers: {
-          Accept: "application/json",
-        },
-        signal: AbortSignal.timeout(20000),
-      });
-    } catch (fetchError) {
-      const isTimeout =
-        fetchError?.name === "TimeoutError" ||
-        fetchError?.name === "AbortError";
-
-      return json(res, 502, {
-        success: false,
-        error: isTimeout
-          ? "Meta Ads API request timed out"
-          : "Could not connect to Meta Ads API",
-        details: fetchError?.message || String(fetchError),
-      });
-    }
-
-    let metaResult;
-
-    try {
-      metaResult = await metaResponse.json();
-    } catch {
-      return json(res, 502, {
-        success: false,
-        error: "Invalid response received from Meta Ads API",
-        http_status: metaResponse.status,
-      });
-    }
-
-    if (!metaResponse.ok || metaResult?.error) {
-      return json(res, metaResponse.status || 502, {
-        success: false,
-        error: "Meta Ads request failed",
-        account_id: metaAccountId,
-        details: metaResult?.error || metaResult,
-      });
-    }
+        requestMetaInsights({
+          apiVersion,
+          metaAccountId,
+          accessToken,
+          fields,
+          datePreset,
+          timeIncrement: 1,
+        }),
+      ]);
 
     // =========================================================
-    // 5. NORMALIZAR MÉTRICAS
+    // 5. NORMALIZAR RESUMO
     // =========================================================
 
-    const insight = metaResult?.data?.[0] || {};
+    const insight =
+      summaryResult?.data?.[0] || {};
 
     const spend = toNumber(insight.spend);
-    const impressions = toNumber(insight.impressions);
+    const impressions = toNumber(
+      insight.impressions,
+    );
     const reach = toNumber(insight.reach);
     const clicks = toNumber(insight.clicks);
+
     const linkClicks = toNumber(
-      insight.inline_link_clicks
+      insight.inline_link_clicks,
     );
 
-    const actions = Array.isArray(insight.actions)
+    const actions = Array.isArray(
+      insight.actions,
+    )
       ? insight.actions
       : [];
 
-    /*
-      Prioridade para conversões classificadas como lead.
-      Não somamos todos os tipos porque alguns podem representar
-      a mesma conversão em classificações diferentes.
-    */
-    const leads = getActionValue(actions, [
-      "lead",
-      "onsite_conversion.lead_grouped",
-      "onsite_conversion.lead",
-      "offsite_conversion.fb_pixel_lead",
-    ]);
-
-    const messagingConversations = getActionValue(actions, [
-      "onsite_conversion.messaging_conversation_started_7d",
-      "messaging_conversation_started_7d",
-    ]);
-
-    const conversions =
-      leads > 0 ? leads : messagingConversations;
+    const {
+      leads,
+      messagingConversations,
+      conversions,
+    } = getConversions(actions);
 
     const ctr =
       insight.ctr !== undefined
@@ -331,7 +393,50 @@ export default async function handler(req, res) {
         : 0;
 
     // =========================================================
-    // 6. RETORNAR JSON PADRONIZADO
+    // 6. NORMALIZAR EVOLUÇÃO DIÁRIA
+    // =========================================================
+
+    const dailyRows = Array.isArray(
+      dailyResult?.data,
+    )
+      ? dailyResult.data
+      : [];
+
+    const chartData = dailyRows.map(
+      (dailyInsight) => {
+        const dailySpend = toNumber(
+          dailyInsight.spend,
+        );
+
+        const dailyActions = Array.isArray(
+          dailyInsight.actions,
+        )
+          ? dailyInsight.actions
+          : [];
+
+        const dailyConversions =
+          getConversions(
+            dailyActions,
+          ).conversions;
+
+        return {
+          name:
+            dailyInsight.date_start || "",
+
+          date:
+            dailyInsight.date_start || "",
+
+          investimento: dailySpend,
+          spend: dailySpend,
+
+          leads: dailyConversions,
+          conversions: dailyConversions,
+        };
+      },
+    );
+
+    // =========================================================
+    // 7. RETORNAR JSON PADRONIZADO
     // =========================================================
 
     return json(res, 200, {
@@ -351,8 +456,17 @@ export default async function handler(req, res) {
 
       period: {
         preset: datePreset,
-        date_start: insight.date_start || null,
-        date_stop: insight.date_stop || null,
+        date_start:
+          insight.date_start ||
+          chartData[0]?.date ||
+          null,
+
+        date_stop:
+          insight.date_stop ||
+          chartData[
+            chartData.length - 1
+          ]?.date ||
+          null,
       },
 
       data: {
@@ -371,18 +485,32 @@ export default async function handler(req, res) {
       },
 
       campaigns: [],
-      chartData: [],
+      chartData,
       insights: [],
 
-      generatedAt: new Date().toISOString(),
+      generatedAt:
+        new Date().toISOString(),
     });
   } catch (error) {
-    console.error("Meta report API error:", error);
+    console.error(
+      "Meta report API error:",
+      error,
+    );
 
-    return json(res, 500, {
-      success: false,
-      error: "Internal Server Error",
-      details: error?.message || String(error),
-    });
+    return json(
+      res,
+      error?.status || 500,
+      {
+        success: false,
+        error:
+          error?.message ||
+          "Internal Server Error",
+
+        details:
+          error?.details ||
+          error?.message ||
+          String(error),
+      },
+    );
   }
 }
