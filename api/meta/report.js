@@ -455,7 +455,35 @@ export default async function handler(req, res) {
         };
       },
     );
+// =========================================================
+// NORMALIZAR CAMPANHAS
+// =========================================================
 
+const campaignRows = Array.isArray(campaignResult?.data)
+  ? campaignResult.data
+  : [];
+
+const campaigns = campaignRows.map((campaign) => {
+  const spend = toNumber(campaign.spend);
+  const clicks = toNumber(campaign.clicks);
+
+  const {
+    conversions,
+  } = getConversions(
+    Array.isArray(campaign.actions)
+      ? campaign.actions
+      : [],
+  );
+
+  return {
+    id: campaign.campaign_id,
+    name: campaign.campaign_name || "Sem nome",
+    investimento: spend,
+    cliques: clicks,
+    leads: conversions,
+    cpl: conversions > 0 ? spend / conversions : 0,
+  };
+});
     // =========================================================
     // 7. RETORNAR JSON PADRONIZADO
     // =========================================================
@@ -505,7 +533,7 @@ export default async function handler(req, res) {
         cpl,
       },
 
-      campaigns: [],
+      campaigns,
       chartData,
       insights: [],
 
